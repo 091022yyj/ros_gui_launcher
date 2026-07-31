@@ -1,4 +1,7 @@
 # updater.py
+import os
+import shutil
+import datetime
 import requests
 from packaging import version
 
@@ -7,6 +10,7 @@ class Updater:
         self.current_version = current_version
         self.update_server = None
         self.update_channel = "stable"
+        self.backup_dir = "backups"
     
     def set_update_server(self, server_url):
         self.update_server = server_url
@@ -52,3 +56,54 @@ class Updater:
             pass
         
         return False
+    
+    def create_backup(self):
+        """创建当前版本备份"""
+        try:
+            os.makedirs(self.backup_dir, exist_ok=True)
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_path = os.path.join(self.backup_dir, f"backup_{timestamp}")
+            shutil.copytree(".", backup_path, ignore=shutil.ignore_patterns('backups', '__pycache__', '.git'))
+            return backup_path
+        except:
+            return None
+    
+    def apply_update(self, update_path):
+        """应用更新"""
+        try:
+            # 备份当前版本
+            backup_path = self.create_backup()
+            
+            # 应用更新
+            # 这里需要根据更新包格式实现具体逻辑
+            
+            return True
+        except:
+            # 回滚
+            if backup_path:
+                self.rollback(backup_path)
+            return False
+    
+    def rollback(self, backup_path):
+        """回滚到备份版本"""
+        try:
+            # 清除当前文件
+            for item in os.listdir('.'):
+                if item not in ['backups', '.git', 'config.json']:
+                    if os.path.isdir(item):
+                        shutil.rmtree(item)
+                    else:
+                        os.remove(item)
+            
+            # 恢复备份
+            for item in os.listdir(backup_path):
+                src = os.path.join(backup_path, item)
+                dst = os.path.join('.', item)
+                if os.path.isdir(src):
+                    shutil.copytree(src, dst)
+                else:
+                    shutil.copy2(src, dst)
+            
+            return True
+        except:
+            return False
