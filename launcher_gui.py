@@ -28,7 +28,7 @@ from PyQt5.QtWidgets import (
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
-VERSION = "1.2.0"
+VERSION = "2.0.0"
 
 DEFAULT_CONFIG = {
     "ros_setup": "/opt/ros/noetic/setup.bash",
