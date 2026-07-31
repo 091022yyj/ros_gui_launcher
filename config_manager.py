@@ -50,6 +50,30 @@ class ConfigManager:
         except OSError:
             return False
     
+    def export_config(self, export_path):
+        """导出配置到文件"""
+        try:
+            config = self.load()
+            export_path = Path(export_path)
+            export_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(export_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+            return True
+        except:
+            return False
+    
+    def import_config(self, import_path):
+        """从文件导入配置"""
+        try:
+            import_path = Path(import_path)
+            if not import_path.exists():
+                return False
+            with open(import_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            return self.save(config)
+        except:
+            return False
+    
     def _load_from_backup(self):
         """从备份加载配置"""
         try:
