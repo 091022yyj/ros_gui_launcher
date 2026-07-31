@@ -16,6 +16,7 @@ import shlex
 import platform
 
 from security import SecurityManager
+from functools import lru_cache
 from PyQt5.QtCore import Qt, QProcess, QTimer
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -138,8 +139,13 @@ class ProcessRow:
     def is_running(self):
         return self.process is not None and self.process.state() == QProcess.Running
 
-    def exists(self):
-        return os.path.isfile(self.path)
+    def exists(self, cache=None):
+        if cache is not None and self.path in cache:
+            return cache[self.path]
+        result = os.path.isfile(self.path)
+        if cache is not None:
+            cache[self.path] = result
+        return result
 
     def to_dict(self):
         return {
@@ -156,17 +162,17 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("ROS 一键启动器 v%s" % VERSION)
         self.resize(1000, 700)
         self.config = self.load_config()
-        self._loading = False  # 阻止加载时触发 itemChanged / save_config
+        self._loading = False
         self._log_file = None
-        self._init_log_file()
+        self._file_exists_cache = {}
         self.security = SecurityManager()
         self._check_platform()
 
         central = QWidget()
         self.setCentralWidget(central)
-        main_layout = QVBoxLayout(central)
+        self._main_layout = QVBoxLayout(central)
 
-        # ---- 全局操作 ----
+        # ---- 全局操作 (轻量级,立即初始化) ----
         global_row = QHBoxLayout()
         start_everything = QPushButton("▶ 一键启动所有任务")
         start_everything.clicked.connect(self.start_everything)
@@ -175,9 +181,9 @@ class MainWindow(QMainWindow):
         global_row.addWidget(start_everything)
         global_row.addWidget(stop_everything)
         global_row.addStretch(1)
-        main_layout.addLayout(global_row)
+        self._main_layout.addLayout(global_row)
 
-        # ---- ROS 环境设置 ----
+        # ---- ROS 环境设置 (轻量级,立即初始化) ----
         env_box = QGroupBox("ROS 环境 (source 路径)")
         env_layout = QVBoxLayout(env_box)
 
@@ -201,19 +207,39 @@ class MainWindow(QMainWindow):
         btn2.clicked.connect(lambda: self.browse_file(self.ws_setup_edit))
         row2.addWidget(btn2)
         env_layout.addLayout(row2)
-        main_layout.addWidget(env_box)
+        self._main_layout.addWidget(env_box)
 
-        # ---- launch 文件 ----
+        # ---- launch 文件 (轻量级,立即初始化) ----
         self.launch_table, launch_box = self._make_task_group(
             "Launch 文件 (roslaunch)", "launch")
-        main_layout.addWidget(launch_box)
+        self._main_layout.addWidget(launch_box)
 
-        # ---- py 文件 ----
+        # ---- py 文件 (轻量级,立即初始化) ----
         self.py_table, py_box = self._make_task_group(
             "Python 文件 (python3)", "py")
-        main_layout.addWidget(py_box)
+        self._main_layout.addWidget(py_box)
 
-        # ---- 日志 ----
+        # ---- 日志 (延迟初始化,重量级组件) ----
+        self._log_box_placeholder = QWidget()
+        self._main_layout.addWidget(self._log_box_placeholder)
+
+        # 恢复已保存的文件列表
+        self._loading = True
+        for entry in list(self.config["launch_files"]):
+            self._add_row(self.launch_table, normalize_task(entry), "launch")
+        for entry in list(self.config["py_files"]):
+            self._add_row(self.py_table, normalize_task(entry), "py")
+        self._loading = False
+
+        # 延迟初始化重量级组件:日志视图 + 文件存在性检查
+        QTimer.singleShot(0, self._init_heavy_components)
+
+    # ---------- 延迟初始化 ----------
+
+    def _init_heavy_components(self):
+        """延迟初始化重量级组件"""
+        # 延迟初始化日志视图
+        self._init_log_file()
         log_box = QGroupBox("运行日志 (同步保存到 logs/ 目录)")
         log_layout = QVBoxLayout(log_box)
         self.log_view = QPlainTextEdit()
@@ -223,15 +249,15 @@ class MainWindow(QMainWindow):
         clear_btn = QPushButton("清空日志")
         clear_btn.clicked.connect(self.log_view.clear)
         log_layout.addWidget(clear_btn)
-        main_layout.addWidget(log_box)
 
-        # 恢复已保存的文件列表(取快照,防止恢复过程改动 config)
-        self._loading = True
-        for entry in list(self.config["launch_files"]):
-            self._add_row(self.launch_table, normalize_task(entry), "launch")
-        for entry in list(self.config["py_files"]):
-            self._add_row(self.py_table, normalize_task(entry), "py")
-        self._loading = False
+        # 替换占位符
+        idx = self._main_layout.indexOf(self._log_box_placeholder)
+        if idx >= 0:
+            self._main_layout.removeWidget(self._log_box_placeholder)
+            self._log_box_placeholder.deleteLater()
+            self._main_layout.insertWidget(idx, log_box)
+
+        # 延迟刷新文件存在性
         self.refresh_file_existence()
 
         # 打开软件后自动启动勾选了的任务(延时错开)
@@ -376,10 +402,10 @@ class MainWindow(QMainWindow):
                 spin.blockSignals(False)
         self.save_config()
 
-    def refresh_row_existence(self, table, path_item):
+    def refresh_row_existence(self, table, path_item, cache=None):
         """文件不存在时路径标红"""
         task = path_item.data(Qt.UserRole)
-        if not task.is_running() and not task.exists():
+        if not task.is_running() and not task.exists(cache):
             path_item.setForeground(Qt.red)
             path_item.setToolTip(task.path + "\n⚠ 文件不存在!")
         else:
@@ -387,10 +413,11 @@ class MainWindow(QMainWindow):
             path_item.setToolTip(task.path)
 
     def refresh_file_existence(self):
+        self._file_exists_cache.clear()
         for kind in ("launch", "py"):
             table = self._table_of(kind)
             for r, task, item in self._rows_of(table):
-                self.refresh_row_existence(table, item)
+                self.refresh_row_existence(table, item, self._file_exists_cache)
 
     # ---------- 进程控制 ----------
 
@@ -628,7 +655,8 @@ class MainWindow(QMainWindow):
             self._log_file = None
 
     def log(self, text):
-        self.log_view.appendPlainText(text)
+        if hasattr(self, 'log_view') and self.log_view is not None:
+            self.log_view.appendPlainText(text)
         if self._log_file:
             try:
                 stamp = datetime.datetime.now().strftime("%H:%M:%S")
