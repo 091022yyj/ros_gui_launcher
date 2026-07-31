@@ -70,6 +70,7 @@ class Updater:
     
     def apply_update(self, update_path):
         """应用更新"""
+        backup_path = None
         try:
             # 备份当前版本
             backup_path = self.create_backup()
