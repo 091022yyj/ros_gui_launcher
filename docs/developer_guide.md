@@ -12,6 +12,7 @@ ros_gui_launcher/
 ├── updater.py          # 更新模块
 ├── security.py         # 安全模块
 ├── build.py            # 打包脚本
+├── ros_gui_launcher.spec # PyInstaller配置文件
 ├── tests/              # 测试目录
 └── docs/               # 文档目录
 ```
