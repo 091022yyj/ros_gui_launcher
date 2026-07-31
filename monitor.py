@@ -48,3 +48,30 @@ class ProcessMonitor:
             "memory_percent": psutil.virtual_memory().percent,
             "disk_usage": psutil.disk_usage('/').percent,
         }
+
+    def get_process_resources(self, pid):
+        try:
+            process = psutil.Process(pid)
+            return {
+                "cpu_percent": process.cpu_percent(),
+                "memory_percent": process.memory_percent(),
+                "threads": process.num_threads(),
+                "create_time": process.create_time(),
+            }
+        except:
+            return {}
+
+    def monitor_network_connections(self, pid):
+        try:
+            process = psutil.Process(pid)
+            connections = process.net_connections()
+            return [{
+                "fd": conn.fd,
+                "family": conn.family,
+                "type": conn.type,
+                "laddr": conn.laddr,
+                "raddr": conn.raddr,
+                "status": conn.status,
+            } for conn in connections]
+        except:
+            return []
