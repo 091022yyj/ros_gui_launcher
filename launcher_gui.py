@@ -12,7 +12,10 @@ import json
 import os
 import signal
 import sys
+import shlex
+import platform
 
+from security import SecurityManager
 from PyQt5.QtCore import Qt, QProcess, QTimer
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -156,6 +159,8 @@ class MainWindow(QMainWindow):
         self._loading = False  # 阻止加载时触发 itemChanged / save_config
         self._log_file = None
         self._init_log_file()
+        self.security = SecurityManager()
+        self._check_platform()
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -650,6 +655,21 @@ class MainWindow(QMainWindow):
         if self._log_file:
             self._log_file.close()
         event.accept()
+
+    def _validate_path(self, path):
+        """验证路径安全性"""
+        return self.security.validate_path(path)
+
+    def _sanitize_command(self, command):
+        """清理命令"""
+        return self.security.sanitize_command(command)
+
+    def _check_platform(self):
+        """检查平台兼容性"""
+        system = platform.system()
+        if system not in ["Linux", "Windows", "Darwin"]:
+            print(f"警告：未测试的平台 {system}")
+        return system
 
 
 def main():
