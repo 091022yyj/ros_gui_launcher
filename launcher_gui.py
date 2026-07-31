@@ -161,6 +161,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("ROS 一键启动器 v%s" % VERSION)
         self.resize(1000, 700)
+        self._load_style()
         self.config = self.load_config()
         self._loading = False
         self._log_file = None
@@ -235,6 +236,13 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(0, self._init_heavy_components)
 
     # ---------- 延迟初始化 ----------
+
+    def _load_style(self):
+        """加载样式表"""
+        style_path = os.path.join(os.path.dirname(__file__), "style.qss")
+        if os.path.exists(style_path):
+            with open(style_path, 'r') as f:
+                self.setStyleSheet(f.read())
 
     def _init_heavy_components(self):
         """延迟初始化重量级组件"""
