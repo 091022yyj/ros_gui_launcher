@@ -30,18 +30,30 @@ class Updater:
             return 0
     
     def check_for_updates(self):
-        """检查是否有更新"""
+        """检查是否有更新
+        返回: {"ok": bool, "error": str/None, "data": dict/None}
+        - ok=True 表示连接成功并获取到发布信息
+        - ok=False 表示连接失败(error含原因),GUI应提示无法连接
+        """
         if not self.update_server:
-            return None
+            return {"ok": False, "error": "未配置更新服务器", "data": None}
         
         try:
-            response = requests.get(f"{self.update_server}/latest.json", timeout=10)
+            # GitHub Releases API
+            url = f"{self.update_server}/releases/latest"
+            response = requests.get(url, timeout=10)
             if response.status_code == 200:
-                return response.json()
-        except:
-            pass
-        
-        return None
+                return {"ok": True, "error": None, "data": response.json()}
+            elif response.status_code == 404:
+                return {"ok": False, "error": "仓库中未找到已发布的版本(404)", "data": None}
+            else:
+                return {"ok": False, "error": f"服务器返回状态码 {response.status_code}", "data": None}
+        except requests.exceptions.ConnectionError:
+            return {"ok": False, "error": "无法连接到GitHub服务器(网络不通)", "data": None}
+        except requests.exceptions.Timeout:
+            return {"ok": False, "error": "连接更新服务器超时", "data": None}
+        except Exception as e:
+            return {"ok": False, "error": str(e), "data": None}
     
     def download_update(self, update_url, save_path):
         """下载更新包"""

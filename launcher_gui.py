@@ -1932,27 +1932,39 @@ class MainWindow(QMainWindow):
         )
 
     def _on_update_check_done(self, result):
-        """更新检查完成回调"""
+        """更新检查完成回调(区分: 有更新/已最新/连接失败)"""
         try:
-            if result and "tag_name" in result:
-                latest_version = result["tag_name"].lstrip("v")
+            # 后台线程异常包装格式
+            if result is None:
+                QMessageBox.warning(self, "检查更新", "无法连接到更新服务器(无响应)")
+                return
+            if isinstance(result, dict) and result.get("success") is False:
+                QMessageBox.warning(self, "检查更新", f"无法连接到更新服务器:\n{result.get('error', '未知错误')}")
+                return
+            if not result.get("ok"):
+                QMessageBox.warning(self, "检查更新", f"无法连接到更新服务器:\n{result.get('error', '未知错误')}")
+                return
+            
+            data = result.get("data") or {}
+            if "tag_name" in data:
+                latest_version = data["tag_name"].lstrip("v")
                 if self.updater.compare_versions(VERSION, latest_version) < 0:
                     reply = QMessageBox.question(
                         self, "发现新版本",
                         f"发现新版本 {latest_version}，当前版本 {VERSION}\n\n"
-                        f"更新说明:\n{result.get('body', '无')}\n\n"
+                        f"更新说明:\n{data.get('body', '无')}\n\n"
                         f"是否打开下载页面？",
                         QMessageBox.Yes | QMessageBox.No
                     )
                     if reply == QMessageBox.Yes:
                         import webbrowser
-                        webbrowser.open(result.get("html_url", ""))
+                        webbrowser.open(data.get("html_url", ""))
                 else:
-                    QMessageBox.information(self, "检查更新", "当前已是最新版本")
+                    QMessageBox.information(self, "检查更新", f"当前已是最新版本 (v{VERSION})")
             else:
-                QMessageBox.information(self, "检查更新", "当前已是最新版本或无法连接到更新服务器")
+                QMessageBox.information(self, "检查更新", f"当前已是最新版本 (v{VERSION})")
         except Exception as e:
-            QMessageBox.warning(self, "检查更新失败", f"无法连接到更新服务器:\n{str(e)}")
+            QMessageBox.warning(self, "检查更新失败", f"检查更新出错:\n{str(e)}")
 
     def _download_update(self, release_info):
         """下载更新"""
