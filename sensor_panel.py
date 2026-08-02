@@ -47,6 +47,22 @@ class SensorPanelWidget(QWidget):
         self.ws_setup = ws_setup
         self._build_source_cmd()
 
+
+    def _run_bg(self, fn, on_done=None):
+        """后台线程执行,避免阻塞界面"""
+        import threading
+        from PyQt5.QtCore import QTimer as QtTimer
+
+        def worker():
+            try:
+                result = fn()
+            except Exception as e:
+                result = {"error": str(e)}
+            if on_done:
+                QtTimer.singleShot(0, lambda: on_done(result))
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def _run_cmd(self, cmd, timeout=5):
         full = f"{self.source_cmd} && {cmd}" if self.source_cmd else cmd
         try:
@@ -127,23 +143,29 @@ class SensorPanelWidget(QWidget):
         layout.addStretch()
 
     def refresh_all(self):
-        """刷新所有传感器状态(只跑1次rostopic list,大幅降低开销)"""
-        stdout, _, code = self._run_cmd("rostopic list 2>/dev/null", timeout=4)
-        topics = set()
-        if code == 0 and stdout:
-            topics = set(t.strip() for t in stdout.split("\n") if t.strip())
-        if not topics:
-            # ROS master未运行
-            for key, label in self.sensor_labels.items():
-                label[0].setText("✗ 未检测到")
-                label[0].setStyleSheet("font-size: 13px; padding: 8px; color: #ff5555;")
-            self.battery_label.setText("ROS未连接")
-            self.battery_bar.setValue(0)
-            self.voltage_label.setText("-- V")
-            self.data_view.setPlainText("无法连接ROS主节点\n\n请确认roscore运行中")
-            return
-        self._check_sensors(topics)
-        self._refresh_battery(topics)
+        """刷新所有传感器状态(后台线程执行,不阻塞界面)"""
+        def worker():
+            stdout, _, code = self._run_cmd("rostopic list 2>/dev/null", timeout=4)
+            topics = set()
+            if code == 0 and stdout:
+                topics = set(t.strip() for t in stdout.split("\n") if t.strip())
+            return topics
+
+        def on_done(topics):
+            if not topics:
+                # ROS master未运行
+                for key, label in self.sensor_labels.items():
+                    label[0].setText("✗ 未检测到")
+                    label[0].setStyleSheet("font-size: 13px; padding: 8px; color: #ff5555;")
+                self.battery_label.setText("ROS未连接")
+                self.battery_bar.setValue(0)
+                self.voltage_label.setText("-- V")
+                self.data_view.setPlainText("无法连接ROS主节点\n\n请确认roscore运行中")
+                return
+            self._check_sensors(topics)
+            self._refresh_battery(topics)
+
+        self._run_bg(worker, on_done)
 
     def _refresh_battery(self, topics):
         """根据话题列表检查电池(纯内存判断,不跑命令)"""

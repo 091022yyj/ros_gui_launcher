@@ -49,6 +49,22 @@ class AlarmSystemWidget(QWidget):
         self.ws_setup = ws_setup
         self._build_source_cmd()
 
+
+    def _run_bg(self, fn, on_done=None):
+        """后台线程执行,避免阻塞界面"""
+        import threading
+        from PyQt5.QtCore import QTimer as QtTimer
+
+        def worker():
+            try:
+                result = fn()
+            except Exception as e:
+                result = {"error": str(e)}
+            if on_done:
+                QtTimer.singleShot(0, lambda: on_done(result))
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def _run_cmd(self, cmd, timeout=8):
         full = f"{self.source_cmd} && {cmd}" if self.source_cmd else cmd
         try:

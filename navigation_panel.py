@@ -124,6 +124,26 @@ class NavigationWidget(QWidget):
 
         layout.addStretch()
 
+        # 导航状态提示
+        self.status_label = QLabel("")
+        self.status_label.setStyleSheet("color: #8be9fd; padding: 4px;")
+        layout.addWidget(self.status_label)
+
+    def _run_bg(self, fn, on_done=None):
+        """后台线程执行,避免阻塞界面"""
+        import threading
+        from PyQt5.QtCore import QTimer as QtTimer
+
+        def worker():
+            try:
+                result = fn()
+            except Exception as e:
+                result = {"error": str(e)}
+            if on_done:
+                QtTimer.singleShot(0, lambda: on_done(result))
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def _send_goal(self):
         x = self.x_spin.value()
         y = self.y_spin.value()
@@ -133,8 +153,7 @@ class NavigationWidget(QWidget):
     def _go_to(self, x, y, theta, name="目标"):
         import math
         theta_rad = math.radians(theta)
-        # 用roslaunch的move_base goal? 用actionlib或rostopic
-        # 简单方式: 使用python脚本通过actionlib发送
+        # 使用python脚本通过actionlib发送(后台线程执行,不阻塞界面)
         script = f'''
 import math, rospy, actionlib
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
@@ -153,23 +172,36 @@ client.send_goal(goal)
 client.wait_for_result(rospy.Duration(30))
 print("SUCCESS" if client.get_state() == 3 else "FAILED")
 '''
-        stdout, stderr, code = self._run_cmd(f"python3 -c '{script}'", timeout=40)
-        if "SUCCESS" in stdout:
-            self.log_if_any(f"导航到[{name}]成功")
-            QMessageBox.information(self, "导航", f"到达目标点 [{name}]")
-        elif "ERROR" in stdout:
-            QMessageBox.warning(self, "导航失败", "move_base服务不可用,请确认导航已启动")
-        else:
-            self.log_if_any(f"导航到[{name}]失败: {stdout}{stderr[:100]}")
-            QMessageBox.warning(self, "导航", f"导航失败:\n{stdout}{stderr[:200]}")
+        self.status_label.setText(f"⏳ 导航中: 目标[{name}] ({x}, {y}) ...")
+
+        def on_done(result):
+            stdout = result.get("stdout", "")
+            stderr = result.get("stderr", "")
+            if "SUCCESS" in stdout:
+                self.status_label.setText(f"✅ 已到达目标点 [{name}]")
+                self.log_if_any(f"导航到[{name}]成功")
+                QMessageBox.information(self, "导航", f"到达目标点 [{name}]")
+            elif "ERROR" in stdout:
+                self.status_label.setText("❌ move_base服务不可用")
+                QMessageBox.warning(self, "导航失败", "move_base服务不可用,请确认导航已启动")
+            else:
+                self.status_label.setText(f"❌ 导航失败: {name}")
+                self.log_if_any(f"导航到[{name}]失败: {stdout}{stderr[:100]}")
+                QMessageBox.warning(self, "导航", f"导航失败:\n{stdout}{stderr[:200]}")
+
+        self._run_bg(
+            lambda: {"stdout": None, "stderr": None} if False else
+                    self._run_cmd(f"python3 -c '{script}'", timeout=40),
+            on_done
+        )
 
     def _cancel_goal(self):
-        cmd = "rostopic pub -1 /move_base/cancel actionlib_msgs/GoalID '{}'"
-        self._run_cmd(cmd)
+        self._run_bg(lambda: self._run_cmd(
+            "rostopic pub -1 /move_base/cancel actionlib_msgs/GoalID '{}'"))
         self.log_if_any("已取消导航目标")
 
     def _clear_costmap(self):
-        self._run_cmd("rosservice call /move_base/clear_costmaps")
+        self._run_bg(lambda: self._run_cmd("rosservice call /move_base/clear_costmaps"))
         self.log_if_any("已清除代价地图")
 
     def _nav_status(self):
