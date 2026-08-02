@@ -110,7 +110,7 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
-VERSION = "3.5.0"
+VERSION = "3.5.1"
 
 DEFAULT_CONFIG = {
     "ros_setup": "/opt/ros/noetic/setup.bash",
@@ -1539,8 +1539,29 @@ class MainWindow(QMainWindow):
         except Exception as e:
             self.log(f"加载Web远程失败: {e}")
         
-        # 导航栏点击切换页面
-        self.nav_list.currentRowChanged.connect(self.content_stack.setCurrentIndex)
+        # 导航栏点击切换页面(页面不可见时暂停其定时器,避免后台消耗CPU)
+        def _on_nav_changed(index):
+            # 暂停所有页面的定时器
+            for i in range(self.content_stack.count()):
+                w = self.content_stack.widget(i)
+                pause = getattr(w, "pause_timers", None)
+                if pause:
+                    if i != index:
+                        try:
+                            pause()
+                        except Exception:
+                            pass
+            self.content_stack.setCurrentIndex(index)
+            # 恢复当前页面的定时器
+            w = self.content_stack.widget(index)
+            resume = getattr(w, "resume_timers", None)
+            if resume:
+                try:
+                    resume()
+                except Exception:
+                    pass
+        
+        self.nav_list.currentRowChanged.connect(_on_nav_changed)
         self.nav_list.setCurrentRow(0)
         
         # 加载历史记录

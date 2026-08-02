@@ -26,7 +26,13 @@ class SensorPanelWidget(QWidget):
         self._init_ui()
         self.refresh_timer = QTimer()
         self.refresh_timer.timeout.connect(self.refresh_all)
-        self.refresh_timer.start(3000)  # 3秒刷新
+        self.refresh_timer.start(5000)  # 5秒刷新
+
+    def pause_timers(self):
+        self.refresh_timer.stop()
+
+    def resume_timers(self):
+        self.refresh_timer.start(5000)
 
     def _build_source_cmd(self):
         parts = []

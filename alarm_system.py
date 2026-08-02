@@ -28,7 +28,13 @@ class AlarmSystemWidget(QWidget):
         self._init_ui()
         self.timer = QTimer()
         self.timer.timeout.connect(self.check_all)
-        self.timer.start(5000)
+        self.timer.start(10000)
+
+    def pause_timers(self):
+        self.timer.stop()
+
+    def resume_timers(self):
+        self.timer.start(10000)
 
     def _build_source_cmd(self):
         parts = []

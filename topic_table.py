@@ -27,7 +27,14 @@ class TopicTableWidget(QWidget):
         self._init_ui()
         self.refresh_timer = QTimer()
         self.refresh_timer.timeout.connect(self._refresh_data)
-        self.refresh_timer.start(1000)
+        self.refresh_timer.start(2000)
+
+    def pause_timers(self):
+        self.refresh_timer.stop()
+
+    def resume_timers(self):
+        if self.auto_refresh_check.isChecked():
+            self.refresh_timer.start(2000)
 
     def _build_source_cmd(self):
         parts = []

@@ -183,10 +183,16 @@ class RobotControlWidget(QWidget):
 
         layout.addStretch()
 
-        # 定时器持续发布速度
+        # 定时器持续发布速度(仅速度非零时发布,减少进程开销)
         self.publish_timer = QTimer()
         self.publish_timer.timeout.connect(self._publish_velocity)
-        self.publish_timer.start(100)  # 10Hz
+        self.publish_timer.start(200)  # 5Hz
+
+    def pause_timers(self):
+        self.publish_timer.stop()
+
+    def resume_timers(self):
+        self.publish_timer.start(200)
 
     def _set_topic(self):
         from PyQt5.QtWidgets import QInputDialog
@@ -224,6 +230,9 @@ class RobotControlWidget(QWidget):
         self.angular_gauge.set_value(self.angular)
 
     def _publish_velocity(self):
+        # 仅在速度非零时发布,降低进程开销
+        if self.linear == 0 and self.angular == 0:
+            return
         self._run_cmd(
             f"rostopic pub -1 {self.cmd_vel_topic} geometry_msgs/Twist "
             f"'{{linear: {{x: {self.linear}, y: 0, z: 0}}, "

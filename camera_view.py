@@ -28,7 +28,14 @@ class CameraViewWidget(QWidget):
         self._init_ui()
         self.refresh_timer = QTimer()
         self.refresh_timer.timeout.connect(self._grab_frame)
-        self.refresh_timer.start(200)  # 5fps
+        self.refresh_timer.start(600)  # 降低抓帧频率
+
+    def pause_timers(self):
+        self.refresh_timer.stop()
+
+    def resume_timers(self):
+        if not self.preview_btn.isChecked():
+            self.refresh_timer.start(600)
 
     def _build_source_cmd(self):
         parts = []
