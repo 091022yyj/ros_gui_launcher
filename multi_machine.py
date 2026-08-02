@@ -41,8 +41,8 @@ class MultiMachineController:
         try:
             with open(self.machines_file, "w", encoding="utf-8") as f:
                 json.dump(self.machines, f, ensure_ascii=False, indent=2)
-        except OSError:
-            pass
+        except (OSError, TypeError) as e:
+            print(f"保存机器配置失败: {e}")
     
     def add_machine(self, name, hostname, username, port=22, password=None, ros_setup=None):
         """添加机器"""
@@ -62,6 +62,8 @@ class MultiMachineController:
     
     def _encode_password(self, password):
         """简单编码密码（不是加密，仅混淆）"""
+        if not isinstance(password, str):
+            password = str(password)
         return base64.b64encode(password.encode()).decode()
     
     def _decode_password(self, encoded):
@@ -157,11 +159,12 @@ class MultiMachineController:
     def test_connection(self, machine_name):
         """测试SSH连接"""
         result = self._run_ssh_command(machine_name, "echo 'connected'")
-        if result["success"]:
-            self.machines[machine_name]["connected"] = True
-        else:
-            self.machines[machine_name]["connected"] = False
-        self.save_machines()
+        if machine_name in self.machines:
+            if result["success"]:
+                self.machines[machine_name]["connected"] = True
+            else:
+                self.machines[machine_name]["connected"] = False
+            self.save_machines()
         return result
     
     def setup_ssh_key(self, machine_name):

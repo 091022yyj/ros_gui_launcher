@@ -3287,16 +3287,15 @@ class MainWindow(QMainWindow):
         if not machine_name:
             return
         
-        machine = self.multi_machine.get_machine(machine_name)
-        
         # 添加到表格
-        task = ProcessRow(
-            path=full_path,
-            kind="launch",
-            args=f"--remote {machine_name}",
-        )
+        task_dict = {
+            "path": full_path,
+            "args": f"--remote {machine_name}",
+            "auto_restart": False,
+            "auto_start": False,
+        }
         
-        self._add_task_row(self.launch_table, task)
+        self._add_row(self.launch_table, task_dict, "launch")
         self.save_config()
         self.log(f"添加远程launch: {full_path}")
 
@@ -3325,16 +3324,15 @@ class MainWindow(QMainWindow):
         if not machine_name:
             return
         
-        machine = self.multi_machine.get_machine(machine_name)
-        
         # 添加到表格
-        task = ProcessRow(
-            path=full_path,
-            kind="py",
-            args=f"--remote {machine_name}",
-        )
+        task_dict = {
+            "path": full_path,
+            "args": f"--remote {machine_name}",
+            "auto_restart": False,
+            "auto_start": False,
+        }
         
-        self._add_task_row(self.py_table, task)
+        self._add_row(self.py_table, task_dict, "py")
         self.save_config()
         self.log(f"添加远程py: {full_path}")
 
