@@ -23,7 +23,7 @@
   ],
   "current_scene": "建图",
   "scenes": {},
-  "translation_enabled": true,
+  "translation_enabled": false,
   "hotkeys": {
     "start_all": "F5",
     "stop_all": "F6",

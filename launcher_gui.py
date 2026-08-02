@@ -14,6 +14,7 @@ import signal
 import sys
 import shlex
 import platform
+import traceback
 
 from security import SecurityManager
 from config_manager import ConfigManager
@@ -26,8 +27,6 @@ from terminal_widget import TerminalWidget
 from ros_monitor import ROSMonitor
 from task_scheduler import TaskScheduler
 from simulation_controller import SimulationController
-from param_server import ParameterServer
-from message_recorder import MessageRecorder
 from log_analyzer import LogAnalyzer
 from tf_monitor import TFMonitor
 from data_visualizer import DataVisualizer
@@ -374,8 +373,6 @@ class MainWindow(QMainWindow):
         )
         self.task_scheduler = TaskScheduler(config_dir=BASE_DIR)
         self.sim_controller = SimulationController()
-        self.param_server = ParameterServer()
-        self.msg_recorder = MessageRecorder(bag_dir=os.path.join(BASE_DIR, "bags"))
         self.log_analyzer = LogAnalyzer(LOG_DIR)
         self.tf_monitor = TFMonitor()
         self.data_visualizer = DataVisualizer()
@@ -889,60 +886,6 @@ class MainWindow(QMainWindow):
         sim_layout.addStretch()
         
         self.tab_widget.addTab(sim_widget, "仿真控制")
-        
-        # 参数服务器标签页
-        param_widget = QWidget()
-        param_layout = QVBoxLayout(param_widget)
-        
-        param_btn_layout = QHBoxLayout()
-        refresh_params_btn = QPushButton("刷新参数列表")
-        refresh_params_btn.clicked.connect(self._refresh_params)
-        param_btn_layout.addWidget(refresh_params_btn)
-        
-        export_params_btn = QPushButton("导出参数")
-        export_params_btn.clicked.connect(self._export_params)
-        param_btn_layout.addWidget(export_params_btn)
-        
-        import_params_btn = QPushButton("导入参数")
-        import_params_btn.clicked.connect(self._import_params)
-        param_btn_layout.addWidget(import_params_btn)
-        
-        param_btn_layout.addStretch()
-        param_layout.addLayout(param_btn_layout)
-        
-        self.param_tree = QTreeWidget()
-        self.param_tree.setHeaderLabels(["参数名", "值", "类型"])
-        self.param_tree.setAlternatingRowColors(True)
-        param_layout.addWidget(self.param_tree)
-        
-        self.tab_widget.addTab(param_widget, "参数服务器")
-        
-        # 消息录制标签页
-        recorder_widget = QWidget()
-        recorder_layout = QVBoxLayout(recorder_widget)
-        
-        recorder_btn_layout = QHBoxLayout()
-        self.record_btn = QPushButton("开始录制")
-        self.record_btn.clicked.connect(self._toggle_recording)
-        recorder_btn_layout.addWidget(self.record_btn)
-        
-        play_bag_btn = QPushButton("播放Bag文件")
-        play_bag_btn.clicked.connect(self._play_bag)
-        recorder_btn_layout.addWidget(play_bag_btn)
-        
-        refresh_bags_btn = QPushButton("刷新Bag列表")
-        refresh_bags_btn.clicked.connect(self._refresh_bags)
-        recorder_btn_layout.addWidget(refresh_bags_btn)
-        
-        recorder_btn_layout.addStretch()
-        recorder_layout.addLayout(recorder_btn_layout)
-        
-        self.bag_tree = QTreeWidget()
-        self.bag_tree.setHeaderLabels(["文件名", "大小", "修改时间"])
-        self.bag_tree.setAlternatingRowColors(True)
-        recorder_layout.addWidget(self.bag_tree)
-        
-        self.tab_widget.addTab(recorder_widget, "消息录制")
         
         # 日志分析标签页
         analyzer_widget = QWidget()
@@ -2644,117 +2587,6 @@ class MainWindow(QMainWindow):
         else:
             QMessageBox.warning(self, "错误", f"删除模型失败:\n{result['error']}")
 
-    # ---------- 参数服务器 ----------
-
-    def _refresh_params(self):
-        """刷新参数列表"""
-        self.param_server.set_ros_env(
-            self.ros_setup_edit.text().strip(),
-            self.ws_setup_edit.text().strip()
-        )
-        result = self.param_server.get_all_params()
-        self.param_tree.clear()
-        
-        if result.get("error"):
-            QMessageBox.warning(self, "错误", f"获取参数失败:\n{result['error']}")
-            return
-        
-        for param in result["params"]:
-            value_result = self.param_server.get_param_value(param)
-            value = value_result.get("value", "")
-            type_result = self.param_server.get_param_type(param)
-            param_type = type_result.get("type", "unknown")
-            
-            item = QTreeWidgetItem([param, str(value)[:50], param_type])
-            self.param_tree.addTopLevelItem(item)
-
-    def _export_params(self):
-        """导出参数"""
-        path, _ = QFileDialog.getSaveFileName(self, "导出参数", 
-                                              os.path.expanduser("~/params.json"),
-                                              "JSON文件 (*.json)")
-        if not path:
-            return
-        
-        self.param_server.set_ros_env(
-            self.ros_setup_edit.text().strip(),
-            self.ws_setup_edit.text().strip()
-        )
-        result = self.param_server.export_params(path)
-        if result["success"]:
-            self.log(f"参数已导出: {path} ({result['count']}个参数)")
-        else:
-            QMessageBox.warning(self, "错误", f"导出参数失败:\n{result['error']}")
-
-    def _import_params(self):
-        """导入参数"""
-        path, _ = QFileDialog.getOpenFileName(self, "导入参数",
-                                              os.path.expanduser("~"),
-                                              "JSON文件 (*.json)")
-        if not path:
-            return
-        
-        self.param_server.set_ros_env(
-            self.ros_setup_edit.text().strip(),
-            self.ws_setup_edit.text().strip()
-        )
-        result = self.param_server.import_params(path)
-        if result["success"]:
-            self.log(f"参数已导入: 成功{result['imported']}个, 失败{result['errors']}个")
-        else:
-            QMessageBox.warning(self, "错误", f"导入参数失败:\n{result['error']}")
-
-    # ---------- 消息录制 ----------
-
-    def _toggle_recording(self):
-        """切换录制状态"""
-        if self.msg_recorder.is_recording():
-            result = self.msg_recorder.stop_recording()
-            if result["success"]:
-                self.record_btn.setText("开始录制")
-                self.log("录制已停止")
-            else:
-                QMessageBox.warning(self, "错误", f"停止录制失败:\n{result['error']}")
-        else:
-            result = self.msg_recorder.start_recording()
-            if result["success"]:
-                self.record_btn.setText("停止录制")
-                self.log(f"录制已开始: {result['bag_path']}")
-            else:
-                QMessageBox.warning(self, "错误", f"开始录制失败:\n{result['error']}")
-
-    def _play_bag(self):
-        """播放Bag文件"""
-        path, _ = QFileDialog.getOpenFileName(self, "选择Bag文件",
-                                              self.msg_recorder.bag_dir,
-                                              "Bag文件 (*.bag)")
-        if not path:
-            return
-        
-        self.msg_recorder.set_ros_env(
-            self.ros_setup_edit.text().strip(),
-            self.ws_setup_edit.text().strip()
-        )
-        result = self.msg_recorder.play_bag(path)
-        if result["success"]:
-            self.log(f"正在播放: {path}")
-        else:
-            QMessageBox.warning(self, "错误", f"播放Bag文件失败:\n{result['error']}")
-
-    def _refresh_bags(self):
-        """刷新Bag文件列表"""
-        result = self.msg_recorder.get_bag_files()
-        self.bag_tree.clear()
-        
-        for bag in result["files"]:
-            size_mb = bag["size"] / (1024 * 1024)
-            item = QTreeWidgetItem([
-                bag["name"],
-                f"{size_mb:.2f} MB",
-                bag["modified"]
-            ])
-            self.bag_tree.addTopLevelItem(item)
-
     # ---------- 日志分析 ----------
 
     def _analyze_all_logs(self):
@@ -2839,8 +2671,10 @@ class MainWindow(QMainWindow):
         if not ok:
             password = None
         
-        ros_setup, ok = QInputDialog.getText(self, "添加机器", "ROS环境配置:", 
-                                            "source ~/.bashrc")
+        ros_setup, ok = QInputDialog.getText(
+            self, "添加机器", "ROS环境配置:",
+            text="source ~/.bashrc"
+        )
         if not ok:
             ros_setup = "source ~/.bashrc"
         
@@ -2882,12 +2716,14 @@ class MainWindow(QMainWindow):
         machines = self.multi_machine.get_machine_list()
         
         for machine in machines:
+            if not isinstance(machine, dict):
+                continue
             item = QTreeWidgetItem([
-                machine["name"],
-                machine["hostname"],
-                machine["username"],
-                str(machine["port"]),
-                "已连接" if machine["connected"] else "未连接"
+                machine.get("name", "未知"),
+                machine.get("hostname", ""),
+                machine.get("username", ""),
+                str(machine.get("port", 22)),
+                "已连接" if machine.get("connected", False) else "未连接"
             ])
             self.machine_tree.addTopLevelItem(item)
 
@@ -3381,7 +3217,21 @@ class MainWindow(QMainWindow):
             self.remote_dir_tree.addTopLevelItem(QTreeWidgetItem(["未找到匹配文件", "", "", ""]))
 
 
+def _global_excepthook(exc_type, exc_value, exc_tb):
+    """全局异常兜底:记录崩溃日志,避免静默闪退"""
+    try:
+        crash_log = os.path.join(LOG_DIR, "crash.log")
+        os.makedirs(LOG_DIR, exist_ok=True)
+        with open(crash_log, "a", encoding="utf-8") as f:
+            f.write("\n[%s] %s\n" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), exc_type.__name__))
+            traceback.print_exception(exc_type, exc_value, exc_tb, file=f)
+    except Exception:
+        pass
+    traceback.print_exception(exc_type, exc_value, exc_tb)
+
+
 def main():
+    sys.excepthook = _global_excepthook
     app = QApplication(sys.argv)
     win = MainWindow()
     win.show()

@@ -197,3 +197,10 @@
 [22:32:03] [wpb_gmapping.launch] [33m[WARN] [1785681123.930731199, 267.042000000]: TF_REPEATED_DATA ignoring data with redundant timestamp for frame odom (parent map) at time 267.091000 according to authority unknown_publisher[0m
 [22:32:07] [wpb_gmapping.launch] Laser Pose= -1.34429e-10 1.57666e-10 -8.866e-12
 [22:33:05] 刷新节点列表: 12 个节点
+[22:33:20] 刷新Topic列表: 70 个话题
+[22:34:03] <<< 停止: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_rviz.launch
+[22:34:03] === 进程结束: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_gmapping.launch
+[22:34:03] <<< 停止: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_gmapping.launch
+[22:34:25] 自动翻译: 禁用
+[22:34:54] 日志分析完成: 4个错误, 6个警告
+[22:35:28] 录制已开始: /home/ub/ros_gui_launcher/dist/bags/recording_20260802_223528.bag
