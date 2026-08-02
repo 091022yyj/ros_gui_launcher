@@ -311,6 +311,49 @@ QTreeWidget::branch {
     background: transparent;
 }
 QListWidget::item:hover { background-color: #353b44; }
+QStatusBar {
+    background-color: #1c1f24;
+    color: #9aa0a6;
+    border-top: 1px solid #3a4048;
+}
+QStatusBar::item { border: none; }
+QStatusBar QLabel { color: #9aa0a6; }
+QMenuBar {
+    background-color: #2b3038;
+    color: #d7dae0;
+}
+QMenuBar::item:selected { background-color: #3d5a80; }
+QMenu {
+    background-color: #2b3038;
+    color: #d7dae0;
+    border: 1px solid #3a4048;
+}
+QMenu::item:selected { background-color: #3d5a80; }
+QCheckBox {
+    spacing: 6px;
+}
+QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    border: 1px solid #4a5158;
+    background-color: #1c1f24;
+}
+QCheckBox::indicator:checked {
+    background-color: #8ab4f8;
+    border-color: #8ab4f8;
+}
+QProgressBar {
+    background-color: #1c1f24;
+    border: 1px solid #3a4048;
+    border-radius: 5px;
+    text-align: center;
+    color: #d7dae0;
+}
+QProgressBar::chunk {
+    background-color: #8ab4f8;
+    border-radius: 4px;
+}
 """
 
 
@@ -430,7 +473,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("ROS 一键启动器 v%s" % VERSION)
-        self.resize(1200, 800)
+        self.resize(1400, 900)
         self._load_style()
         self.config = self.load_config()
         self._loading = False
@@ -454,6 +497,15 @@ class MainWindow(QMainWindow):
         self.multi_machine = MultiMachineController(config_dir=BASE_DIR)
         self.plugin_manager = PluginManager(config_dir=BASE_DIR)
         self._check_platform()
+
+        # 状态栏
+        self._status_label = QLabel("就绪")
+        self._status_running = QLabel("运行中: 0")
+        self._status_task = QLabel("任务: 0")
+        status_bar = self.statusBar()
+        status_bar.addWidget(self._status_label, 1)
+        status_bar.addPermanentWidget(self._status_task)
+        status_bar.addPermanentWidget(self._status_running)
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -1694,6 +1746,8 @@ class MainWindow(QMainWindow):
     def log(self, text):
         if hasattr(self, 'log_view') and self.log_view is not None:
             self.log_view.appendPlainText(text)
+        if hasattr(self, '_status_label'):
+            self._status_label.setText(text[-60:])
         if self._log_file:
             try:
                 stamp = datetime.datetime.now().strftime("%H:%M:%S")
