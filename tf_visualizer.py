@@ -301,6 +301,10 @@ class TFVisualizerWidget(QWidget):
             return transforms
 
         def on_done(transforms):
+            # 防御: 后台异常时收到的是{"error": ...}
+            if isinstance(transforms, dict):
+                self.info_text.setPlainText(f"获取TF数据出错:\n{transforms.get('error', '未知错误')}")
+                return
             self._transforms = transforms
             if not transforms:
                 self.info_text.setPlainText(
@@ -312,19 +316,9 @@ class TFVisualizerWidget(QWidget):
         self._run_bg(worker, on_done)
 
     def _run_bg(self, fn, on_done=None):
-        """后台线程执行,避免阻塞界面"""
-        import threading
-        from PyQt5.QtCore import QTimer as QtTimer
-
-        def worker():
-            try:
-                result = fn()
-            except Exception as e:
-                result = {"error": str(e)}
-            if on_done:
-                QtTimer.singleShot(0, lambda: on_done(result))
-
-        threading.Thread(target=worker, daemon=True).start()
+        """后台线程执行,完成后主线程回调(线程安全)"""
+        from async_helper import run_async
+        run_async(fn, on_done)
 
     def _build_tree(self, transforms):
         """构建标准TF树"""

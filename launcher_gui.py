@@ -110,7 +110,7 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
-VERSION = "3.5.4"
+VERSION = "3.5.5"
 
 DEFAULT_CONFIG = {
     "ros_setup": "/opt/ros/noetic/setup.bash",
@@ -842,7 +842,10 @@ class MainWindow(QMainWindow):
             self.setStyleSheet(APP_QSS)
 
     def _init_heavy_components(self):
-        """延迟初始化重量级组件"""
+        """延迟初始化重量级组件(防重入)"""
+        if getattr(self, "_heavy_initialized", False):
+            return
+        self._heavy_initialized = True
         # 延迟初始化日志视图
         self._init_log_file()
         
@@ -3188,17 +3191,9 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "错误", f"删除机器失败: {machine_name}")
 
     def _run_async_ssh(self, fn, on_done=None):
-        """在后台线程执行SSH操作,避免卡住界面;完成后回到主线程回调"""
-        import threading
-        def worker():
-            try:
-                result = fn()
-            except Exception as e:
-                result = {"success": False, "error": str(e)}
-            if on_done:
-                QTimer.singleShot(0, lambda: on_done(result))
-        t = threading.Thread(target=worker, daemon=True)
-        t.start()
+        """后台线程执行SSH操作,避免卡住界面;完成后回到主线程回调(线程安全)"""
+        from async_helper import run_async
+        run_async(fn, on_done)
 
     def _test_machine_connection(self):
         """测试机器连接(异步,不卡界面)"""

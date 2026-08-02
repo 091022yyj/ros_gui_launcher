@@ -49,19 +49,9 @@ class SensorPanelWidget(QWidget):
 
 
     def _run_bg(self, fn, on_done=None):
-        """后台线程执行,避免阻塞界面"""
-        import threading
-        from PyQt5.QtCore import QTimer as QtTimer
-
-        def worker():
-            try:
-                result = fn()
-            except Exception as e:
-                result = {"error": str(e)}
-            if on_done:
-                QtTimer.singleShot(0, lambda: on_done(result))
-
-        threading.Thread(target=worker, daemon=True).start()
+        """后台线程执行,完成后主线程回调(线程安全)"""
+        from async_helper import run_async
+        run_async(fn, on_done)
 
     def _run_cmd(self, cmd, timeout=5):
         full = f"{self.source_cmd} && {cmd}" if self.source_cmd else cmd
