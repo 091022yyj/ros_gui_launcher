@@ -115,21 +115,11 @@ class MultiMachineController:
         username = machine.get("username", "")
         port = machine.get("port", 22)
         
-        # 使用 sshpass 处理密码
-        if use_password:
-            password = self._decode_password(machine.get("password"))
-            if password:
-                sshpass_cmd = f"sshpass -p '{password}' "
-            else:
-                sshpass_cmd = ""
-        else:
-            sshpass_cmd = ""
-        
-        # 构建完整的ROS环境命令
+        # 直接使用ssh命令（不使用sshpass）
         ros_setup = machine.get("ros_setup", "source ~/.bashrc")
         full_cmd = f"{ros_setup} && {command}"
         
-        ssh_cmd = f"{sshpass_cmd}ssh -o StrictHostKeyChecking=no -p {port} {username}@{hostname} '{full_cmd}'"
+        ssh_cmd = f"ssh -o StrictHostKeyChecking=no -p {port} {username}@{hostname} '{full_cmd}'"
         return ssh_cmd
     
     def _run_ssh_command(self, machine_name, command, use_password=True, timeout=30):

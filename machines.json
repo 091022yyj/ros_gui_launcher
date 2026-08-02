@@ -1,0 +1,12 @@
+{
+  "test": {
+    "name": "test",
+    "hostname": "192.168.8.118",
+    "username": "eaibot",
+    "port": 22,
+    "password": "ZWFpYm90",
+    "ros_setup": "source ~/.bashrc",
+    "connected": false,
+    "launch_process": null
+  }
+}
