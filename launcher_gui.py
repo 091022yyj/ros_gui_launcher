@@ -19,14 +19,30 @@ from security import SecurityManager
 from config_manager import ConfigManager
 from monitor import ProcessMonitor
 from updater import Updater
+from log_manager import LogManager
+from ros_translator import ROSTranslator
+from scene_manager import SceneManager
+from terminal_widget import TerminalWidget
+from ros_monitor import ROSMonitor
+from task_scheduler import TaskScheduler
+from simulation_controller import SimulationController
+from param_server import ParameterServer
+from message_recorder import MessageRecorder
+from log_analyzer import LogAnalyzer
+from tf_monitor import TFMonitor
+from data_visualizer import DataVisualizer
+from multi_machine import MultiMachineController
+from plugin_manager import PluginManager
 from functools import lru_cache
 from PyQt5.QtCore import Qt, QProcess, QTimer
-from PyQt5.QtGui import QColor
+from PyQt5.QtGui import QColor, QKeySequence
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QLineEdit, QFileDialog, QGroupBox,
     QPlainTextEdit, QTableWidget, QTableWidgetItem, QAbstractItemView,
     QMessageBox, QHeaderView, QSpinBox, QTabWidget, QProgressBar,
+    QListWidget, QListWidgetItem, QDockWidget, QSplitter, QTreeWidget,
+    QTreeWidgetItem, QHeaderView as QTreeHeaderView, QComboBox, QShortcut,
 )
 
 # PyInstaller 打包后 __file__ 指向临时解压目录,
@@ -37,7 +53,7 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
-VERSION = "2.0.0"
+VERSION = "3.3.0"
 
 DEFAULT_CONFIG = {
     "ros_setup": "/opt/ros/noetic/setup.bash",
@@ -45,6 +61,16 @@ DEFAULT_CONFIG = {
     "start_delay": 3,  # 顺序启动时每个任务之间的延时(秒)
     "launch_files": [],
     "py_files": [],
+    "history": [],  # 历史记录
+    "current_scene": None,  # 当前场景
+    "scenes": {},  # 场景配置
+    "translation_enabled": True,  # 启用翻译
+    "hotkeys": {
+        "start_all": "F5",
+        "stop_all": "F6",
+        "start_selected": "F7",
+        "stop_selected": "F8",
+    },
 }
 
 MAX_RESTARTS = 3  # 崩溃自动重启的最大次数
@@ -187,6 +213,30 @@ QToolTip {
     border: 1px solid #4a5158;
     padding: 4px;
 }
+QListWidget {
+    background-color: #16181d;
+    border: 1px solid #3a4048;
+    border-radius: 6px;
+    color: #d7dae0;
+}
+QListWidget::item {
+    padding: 6px 8px;
+}
+QListWidget::item:selected {
+    background-color: #3d5a80;
+    color: #ffffff;
+}
+QListWidget::item:hover {
+    background-color: #2b3038;
+}
+QDockWidget {
+    color: #d7dae0;
+    font-weight: bold;
+}
+QDockWidget::title {
+    background-color: #31363e;
+    padding: 6px;
+}
 """
 
 
@@ -306,7 +356,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("ROS 一键启动器 v%s" % VERSION)
-        self.resize(1000, 700)
+        self.resize(1200, 800)
         self._load_style()
         self.config = self.load_config()
         self._loading = False
@@ -315,6 +365,22 @@ class MainWindow(QMainWindow):
         self.security = SecurityManager()
         self.monitor = ProcessMonitor()
         self.updater = Updater(VERSION)
+        self.log_manager = LogManager(LOG_DIR)
+        self.translator = ROSTranslator()
+        self.scene_manager = SceneManager()
+        self.ros_monitor = ROSMonitor(
+            ros_setup=self.config.get("ros_setup", ""),
+            ws_setup=self.config.get("ws_setup", "")
+        )
+        self.task_scheduler = TaskScheduler()
+        self.sim_controller = SimulationController()
+        self.param_server = ParameterServer()
+        self.msg_recorder = MessageRecorder()
+        self.log_analyzer = LogAnalyzer(LOG_DIR)
+        self.tf_monitor = TFMonitor()
+        self.data_visualizer = DataVisualizer()
+        self.multi_machine = MultiMachineController()
+        self.plugin_manager = PluginManager()
         self._check_platform()
 
         central = QWidget()
@@ -348,7 +414,62 @@ class MainWindow(QMainWindow):
         update_btn.clicked.connect(self.check_update)
         global_row.addWidget(update_btn)
         
+        # 多配置切换
+        self.config_combo = QComboBox()
+        self.config_combo.setMinimumWidth(150)
+        self.config_combo.currentTextChanged.connect(self._on_config_changed)
+        global_row.addWidget(QLabel("配置:"))
+        global_row.addWidget(self.config_combo)
+        
+        save_config_btn = QPushButton("💾 保存配置")
+        save_config_btn.clicked.connect(self._save_current_config)
+        global_row.addWidget(save_config_btn)
+        
         self._main_layout.addLayout(global_row)
+        
+        # 全局进度条
+        self.global_progress = QProgressBar()
+        self.global_progress.setRange(0, 100)
+        self.global_progress.setValue(0)
+        self.global_progress.hide()
+        self.global_progress.setMaximumHeight(6)
+        self._main_layout.addWidget(self.global_progress)
+        
+        # 批量操作按钮
+        batch_row = QHBoxLayout()
+        
+        batch_select_all = QPushButton("全选")
+        batch_select_all.clicked.connect(self._batch_select_all)
+        batch_row.addWidget(batch_select_all)
+        
+        batch_deselect_all = QPushButton("取消全选")
+        batch_deselect_all.clicked.connect(self._batch_deselect_all)
+        batch_row.addWidget(batch_deselect_all)
+        
+        batch_enable_restart = QPushButton("启用崩溃重启")
+        batch_enable_restart.clicked.connect(lambda: self._batch_set_restart(True))
+        batch_row.addWidget(batch_enable_restart)
+        
+        batch_disable_restart = QPushButton("禁用崩溃重启")
+        batch_disable_restart.clicked.connect(lambda: self._batch_set_restart(False))
+        batch_row.addWidget(batch_disable_restart)
+        
+        batch_enable_autostart = QPushButton("启用自启动")
+        batch_enable_autostart.clicked.connect(lambda: self._batch_set_autostart(True))
+        batch_row.addWidget(batch_enable_autostart)
+        
+        batch_disable_autostart = QPushButton("禁用自启动")
+        batch_disable_autostart.clicked.connect(lambda: self._batch_set_autostart(False))
+        batch_row.addWidget(batch_disable_autostart)
+        
+        batch_row.addStretch()
+        
+        # 快捷键说明
+        hotkey_label = QLabel("快捷键: F5启动 | F6停止 | F7启动选中 | F8停止选中")
+        hotkey_label.setStyleSheet("color: #8ab4f8; font-size: 11px;")
+        batch_row.addWidget(hotkey_label)
+        
+        self._main_layout.addLayout(batch_row)
 
         # ---- ROS 环境设置 (轻量级,立即初始化) ----
         env_box = QGroupBox("ROS 环境 (source 路径)")
@@ -417,7 +538,7 @@ class MainWindow(QMainWindow):
         # 延迟初始化日志视图
         self._init_log_file()
         
-        # 创建标签页：日志和监控
+        # 创建标签页：日志、监控和历史
         self.tab_widget = QTabWidget()
         
         # 日志标签页
@@ -472,12 +593,637 @@ class MainWindow(QMainWindow):
         
         self.tab_widget.addTab(monitor_widget, "系统监控")
         
+        # 历史记录标签页
+        history_widget = QWidget()
+        history_layout = QVBoxLayout(history_widget)
+        
+        history_label = QLabel("双击项目可快速加载:")
+        history_layout.addWidget(history_label)
+        
+        self.history_list = QListWidget()
+        self.history_list.itemDoubleClicked.connect(self._on_history_clicked)
+        history_layout.addWidget(self.history_list)
+        
+        history_btn_layout = QHBoxLayout()
+        clear_history_btn = QPushButton("清空历史")
+        clear_history_btn.clicked.connect(self._clear_history)
+        history_btn_layout.addWidget(clear_history_btn)
+        history_btn_layout.addStretch()
+        history_layout.addLayout(history_btn_layout)
+        
+        self.tab_widget.addTab(history_widget, "历史记录")
+        
+        # 内置终端标签页
+        self.terminal_widget = TerminalWidget(
+            ros_setup=self.config.get("ros_setup", ""),
+            ws_setup=self.config.get("ws_setup", "")
+        )
+        self.tab_widget.addTab(self.terminal_widget, "内置终端")
+        
+        # 场景管理标签页
+        scene_widget = QWidget()
+        scene_layout = QVBoxLayout(scene_widget)
+        
+        scene_btn_layout = QHBoxLayout()
+        create_scene_btn = QPushButton("创建场景")
+        create_scene_btn.clicked.connect(self._create_scene)
+        scene_btn_layout.addWidget(create_scene_btn)
+        
+        save_scene_btn = QPushButton("保存当前为场景")
+        save_scene_btn.clicked.connect(self._save_current_as_scene)
+        scene_btn_layout.addWidget(save_scene_btn)
+        
+        scene_btn_layout.addStretch()
+        scene_layout.addLayout(scene_btn_layout)
+        
+        self.scene_list = QListWidget()
+        self.scene_list.itemDoubleClicked.connect(self._on_scene_clicked)
+        scene_layout.addWidget(self.scene_list)
+        
+        scene_action_layout = QHBoxLayout()
+        apply_scene_btn = QPushButton("应用场景")
+        apply_scene_btn.clicked.connect(self._apply_scene)
+        scene_action_layout.addWidget(apply_scene_btn)
+        
+        delete_scene_btn = QPushButton("删除场景")
+        delete_scene_btn.clicked.connect(self._delete_scene)
+        scene_action_layout.addWidget(delete_scene_btn)
+        
+        scene_action_layout.addStretch()
+        scene_layout.addLayout(scene_action_layout)
+        
+        self.tab_widget.addTab(scene_widget, "场景管理")
+        
+        # 翻译工具标签页
+        translator_widget = QWidget()
+        translator_layout = QVBoxLayout(translator_widget)
+        
+        translator_input_layout = QHBoxLayout()
+        translator_input_layout.addWidget(QLabel("输入英文:"))
+        self.translator_input = QLineEdit()
+        self.translator_input.setPlaceholderText("输入要翻译的ROS错误信息...")
+        translator_input_layout.addWidget(self.translator_input)
+        
+        translate_btn = QPushButton("翻译")
+        translate_btn.clicked.connect(self._translate_text)
+        translator_input_layout.addWidget(translate_btn)
+        
+        translator_layout.addLayout(translator_input_layout)
+        
+        translator_output_layout = QHBoxLayout()
+        translator_output_layout.addWidget(QLabel("中文翻译:"))
+        self.translator_output = QLineEdit()
+        self.translator_output.setReadOnly(True)
+        translator_output_layout.addWidget(self.translator_output)
+        
+        copy_btn = QPushButton("复制")
+        copy_btn.clicked.connect(self._copy_translation)
+        translator_output_layout.addWidget(copy_btn)
+        
+        translator_layout.addLayout(translator_output_layout)
+        
+        # 翻译开关
+        self.translation_enabled_cb = QPushButton("启用自动翻译")
+        self.translation_enabled_cb.setCheckable(True)
+        self.translation_enabled_cb.setChecked(self.config.get("translation_enabled", True))
+        self.translation_enabled_cb.clicked.connect(self._toggle_translation)
+        translator_layout.addWidget(self.translation_enabled_cb)
+        
+        translator_layout.addStretch()
+        
+        self.tab_widget.addTab(translator_widget, "翻译工具")
+        
+        # ROS监控标签页
+        ros_monitor_widget = QWidget()
+        ros_monitor_layout = QVBoxLayout(ros_monitor_widget)
+        
+        # ROS主节点状态
+        master_group = QGroupBox("ROS主节点状态")
+        master_layout = QHBoxLayout(master_group)
+        
+        self.ros_master_status = QLabel("状态: 未知")
+        master_layout.addWidget(self.ros_master_status)
+        
+        refresh_master_btn = QPushButton("刷新状态")
+        refresh_master_btn.clicked.connect(self._refresh_ros_master)
+        master_layout.addWidget(refresh_master_btn)
+        
+        ros_monitor_layout.addWidget(master_group)
+        
+        # 节点监控
+        node_group = QGroupBox("ROS节点监控")
+        node_layout = QVBoxLayout(node_group)
+        
+        node_btn_layout = QHBoxLayout()
+        refresh_nodes_btn = QPushButton("刷新节点列表")
+        refresh_nodes_btn.clicked.connect(self._refresh_ros_nodes)
+        node_btn_layout.addWidget(refresh_nodes_btn)
+        
+        node_info_btn = QPushButton("查看节点信息")
+        node_info_btn.clicked.connect(self._show_node_info)
+        node_btn_layout.addWidget(node_info_btn)
+        
+        node_btn_layout.addStretch()
+        node_layout.addLayout(node_btn_layout)
+        
+        self.node_tree = QTreeWidget()
+        self.node_tree.setHeaderLabels(["节点名称", "状态", "发布者", "订阅者"])
+        self.node_tree.setAlternatingRowColors(True)
+        node_layout.addWidget(self.node_tree)
+        
+        ros_monitor_layout.addWidget(node_group)
+        
+        # Topic监控
+        topic_group = QGroupBox("ROS Topic监控")
+        topic_layout = QVBoxLayout(topic_group)
+        
+        topic_btn_layout = QHBoxLayout()
+        refresh_topics_btn = QPushButton("刷新Topic列表")
+        refresh_topics_btn.clicked.connect(self._refresh_ros_topics)
+        topic_btn_layout.addWidget(refresh_topics_btn)
+        
+        topic_info_btn = QPushButton("查看Topic信息")
+        topic_info_btn.clicked.connect(self._show_topic_info)
+        topic_btn_layout.addWidget(topic_info_btn)
+        
+        topic_btn_layout.addStretch()
+        topic_layout.addLayout(topic_btn_layout)
+        
+        self.topic_tree = QTreeWidget()
+        self.topic_tree.setHeaderLabels(["Topic名称", "类型", "发布者数", "订阅者数"])
+        self.topic_tree.setAlternatingRowColors(True)
+        topic_layout.addWidget(self.topic_tree)
+        
+        ros_monitor_layout.addWidget(topic_group)
+        
+        # 网络监控
+        network_group = QGroupBox("网络监控")
+        network_layout = QVBoxLayout(network_group)
+        
+        self.network_info = QPlainTextEdit()
+        self.network_info.setReadOnly(True)
+        self.network_info.setMaximumHeight(100)
+        network_layout.addWidget(self.network_info)
+        
+        refresh_network_btn = QPushButton("刷新网络状态")
+        refresh_network_btn.clicked.connect(self._refresh_network)
+        network_layout.addWidget(refresh_network_btn)
+        
+        ros_monitor_layout.addWidget(network_group)
+        
+        self.tab_widget.addTab(ros_monitor_widget, "ROS监控")
+        
+        # 磁盘监控标签页
+        disk_widget = QWidget()
+        disk_layout = QVBoxLayout(disk_widget)
+        
+        # 磁盘使用情况
+        disk_group = QGroupBox("磁盘使用情况")
+        disk_inner_layout = QVBoxLayout(disk_group)
+        
+        self.disk_tree = QTreeWidget()
+        self.disk_tree.setHeaderLabels(["设备", "挂载点", "总大小", "已用", "可用", "使用率"])
+        self.disk_tree.setAlternatingRowColors(True)
+        disk_inner_layout.addWidget(self.disk_tree)
+        
+        refresh_disk_btn = QPushButton("刷新磁盘信息")
+        refresh_disk_btn.clicked.connect(self._refresh_disk)
+        disk_inner_layout.addWidget(refresh_disk_btn)
+        
+        disk_layout.addWidget(disk_group)
+        
+        # 日志目录大小
+        log_size_group = QGroupBox("日志目录")
+        log_size_layout = QHBoxLayout(log_size_group)
+        
+        self.log_size_label = QLabel("日志目录大小: 计算中...")
+        log_size_layout.addWidget(self.log_size_label)
+        
+        refresh_log_size_btn = QPushButton("刷新")
+        refresh_log_size_btn.clicked.connect(self._refresh_log_size)
+        log_size_layout.addWidget(refresh_log_size_btn)
+        
+        clean_logs_btn = QPushButton("清理旧日志")
+        clean_logs_btn.clicked.connect(self._clean_old_logs)
+        log_size_layout.addWidget(clean_logs_btn)
+        
+        log_size_layout.addStretch()
+        disk_layout.addWidget(log_size_group)
+        
+        disk_layout.addStretch()
+        
+        self.tab_widget.addTab(disk_widget, "磁盘监控")
+        
+        # TF可视化标签页
+        try:
+            from tf_visualizer import TFVisualizerWidget
+            self.tf_visualizer = TFVisualizerWidget(
+                ros_setup=self.config.get("ros_setup", ""),
+                ws_setup=self.config.get("ws_setup", "")
+            )
+            self.tab_widget.addTab(self.tf_visualizer, "TF可视化")
+        except Exception as e:
+            print(f"加载TF可视化组件失败: {e}")
+        
+        # 任务调度标签页
+        scheduler_widget = QWidget()
+        scheduler_layout = QVBoxLayout(scheduler_widget)
+        
+        scheduler_btn_layout = QHBoxLayout()
+        add_schedule_btn = QPushButton("添加定时任务")
+        add_schedule_btn.clicked.connect(self._add_schedule)
+        scheduler_btn_layout.addWidget(add_schedule_btn)
+        
+        refresh_schedule_btn = QPushButton("刷新列表")
+        refresh_schedule_btn.clicked.connect(self._refresh_schedules)
+        scheduler_btn_layout.addWidget(refresh_schedule_btn)
+        
+        scheduler_btn_layout.addStretch()
+        scheduler_layout.addLayout(scheduler_btn_layout)
+        
+        self.schedule_tree = QTreeWidget()
+        self.schedule_tree.setHeaderLabels(["任务名称", "类型", "路径", "状态", "下次运行"])
+        self.schedule_tree.setAlternatingRowColors(True)
+        scheduler_layout.addWidget(self.schedule_tree)
+        
+        self.tab_widget.addTab(scheduler_widget, "任务调度")
+        
+        # 仿真控制标签页
+        sim_widget = QWidget()
+        sim_layout = QVBoxLayout(sim_widget)
+        
+        sim_group = QGroupBox("Gazebo仿真控制")
+        sim_inner_layout = QHBoxLayout(sim_group)
+        
+        pause_sim_btn = QPushButton("暂停仿真")
+        pause_sim_btn.clicked.connect(self._pause_simulation)
+        sim_inner_layout.addWidget(pause_sim_btn)
+        
+        unpause_sim_btn = QPushButton("继续仿真")
+        unpause_sim_btn.clicked.connect(self._unpause_simulation)
+        sim_inner_layout.addWidget(unpause_sim_btn)
+        
+        reset_sim_btn = QPushButton("重置仿真")
+        reset_sim_btn.clicked.connect(self._reset_simulation)
+        sim_inner_layout.addWidget(reset_sim_btn)
+        
+        sim_layout.addWidget(sim_group)
+        
+        # 模型管理
+        model_group = QGroupBox("模型管理")
+        model_layout = QVBoxLayout(model_group)
+        
+        model_btn_layout = QHBoxLayout()
+        spawn_model_btn = QPushButton("生成模型")
+        spawn_model_btn.clicked.connect(self._spawn_model)
+        model_btn_layout.addWidget(spawn_model_btn)
+        
+        delete_model_btn = QPushButton("删除模型")
+        delete_model_btn.clicked.connect(self._delete_model)
+        model_btn_layout.addWidget(delete_model_btn)
+        
+        model_btn_layout.addStretch()
+        model_layout.addLayout(model_btn_layout)
+        
+        sim_layout.addWidget(model_group)
+        sim_layout.addStretch()
+        
+        self.tab_widget.addTab(sim_widget, "仿真控制")
+        
+        # 参数服务器标签页
+        param_widget = QWidget()
+        param_layout = QVBoxLayout(param_widget)
+        
+        param_btn_layout = QHBoxLayout()
+        refresh_params_btn = QPushButton("刷新参数列表")
+        refresh_params_btn.clicked.connect(self._refresh_params)
+        param_btn_layout.addWidget(refresh_params_btn)
+        
+        export_params_btn = QPushButton("导出参数")
+        export_params_btn.clicked.connect(self._export_params)
+        param_btn_layout.addWidget(export_params_btn)
+        
+        import_params_btn = QPushButton("导入参数")
+        import_params_btn.clicked.connect(self._import_params)
+        param_btn_layout.addWidget(import_params_btn)
+        
+        param_btn_layout.addStretch()
+        param_layout.addLayout(param_btn_layout)
+        
+        self.param_tree = QTreeWidget()
+        self.param_tree.setHeaderLabels(["参数名", "值", "类型"])
+        self.param_tree.setAlternatingRowColors(True)
+        param_layout.addWidget(self.param_tree)
+        
+        self.tab_widget.addTab(param_widget, "参数服务器")
+        
+        # 消息录制标签页
+        recorder_widget = QWidget()
+        recorder_layout = QVBoxLayout(recorder_widget)
+        
+        recorder_btn_layout = QHBoxLayout()
+        self.record_btn = QPushButton("开始录制")
+        self.record_btn.clicked.connect(self._toggle_recording)
+        recorder_btn_layout.addWidget(self.record_btn)
+        
+        play_bag_btn = QPushButton("播放Bag文件")
+        play_bag_btn.clicked.connect(self._play_bag)
+        recorder_btn_layout.addWidget(play_bag_btn)
+        
+        refresh_bags_btn = QPushButton("刷新Bag列表")
+        refresh_bags_btn.clicked.connect(self._refresh_bags)
+        recorder_btn_layout.addWidget(refresh_bags_btn)
+        
+        recorder_btn_layout.addStretch()
+        recorder_layout.addLayout(recorder_btn_layout)
+        
+        self.bag_tree = QTreeWidget()
+        self.bag_tree.setHeaderLabels(["文件名", "大小", "修改时间"])
+        self.bag_tree.setAlternatingRowColors(True)
+        recorder_layout.addWidget(self.bag_tree)
+        
+        self.tab_widget.addTab(recorder_widget, "消息录制")
+        
+        # 日志分析标签页
+        analyzer_widget = QWidget()
+        analyzer_layout = QVBoxLayout(analyzer_widget)
+        
+        analyzer_btn_layout = QHBoxLayout()
+        analyze_all_btn = QPushButton("分析所有日志")
+        analyze_all_btn.clicked.connect(self._analyze_all_logs)
+        analyzer_btn_layout.addWidget(analyze_all_btn)
+        
+        search_errors_btn = QPushButton("搜索错误")
+        search_errors_btn.clicked.connect(self._search_errors)
+        analyzer_btn_layout.addWidget(search_errors_btn)
+        
+        export_report_btn = QPushButton("导出报告")
+        export_report_btn.clicked.connect(self._export_report)
+        analyzer_btn_layout.addWidget(export_report_btn)
+        
+        analyzer_btn_layout.addStretch()
+        analyzer_layout.addLayout(analyzer_btn_layout)
+        
+        self.analysis_result = QPlainTextEdit()
+        self.analysis_result.setReadOnly(True)
+        analyzer_layout.addWidget(self.analysis_result)
+        
+        self.tab_widget.addTab(analyzer_widget, "日志分析")
+        
+        # 多机协同标签页
+        multi_machine_widget = QWidget()
+        multi_machine_layout = QVBoxLayout(multi_machine_widget)
+        
+        # 上半部分：机器列表
+        machine_list_layout = QHBoxLayout()
+        
+        # 左侧按钮
+        machine_btn_layout = QVBoxLayout()
+        add_machine_btn = QPushButton("添加机器")
+        add_machine_btn.clicked.connect(self._add_machine)
+        machine_btn_layout.addWidget(add_machine_btn)
+        
+        test_connection_btn = QPushButton("测试连接")
+        test_connection_btn.clicked.connect(self._test_machine_connection)
+        machine_btn_layout.addWidget(test_connection_btn)
+        
+        setup_key_btn = QPushButton("设置密钥")
+        setup_key_btn.clicked.connect(self._setup_machine_key)
+        machine_btn_layout.addWidget(setup_key_btn)
+        
+        refresh_machines_btn = QPushButton("刷新列表")
+        refresh_machines_btn.clicked.connect(self._refresh_machines)
+        machine_btn_layout.addWidget(refresh_machines_btn)
+        
+        machine_btn_layout.addStretch()
+        machine_list_layout.addLayout(machine_btn_layout)
+        
+        # 右侧机器列表
+        self.machine_tree = QTreeWidget()
+        self.machine_tree.setHeaderLabels(["名称", "主机名", "用户名", "端口", "状态"])
+        self.machine_tree.setAlternatingRowColors(True)
+        self.machine_tree.itemSelectionChanged.connect(self._on_machine_selected)
+        machine_list_layout.addWidget(self.machine_tree)
+        
+        multi_machine_layout.addLayout(machine_list_layout)
+        
+        # 下半部分：ROS远程控制
+        ros_remote_group = QGroupBox("ROS远程控制")
+        ros_remote_layout = QVBoxLayout(ros_remote_group)
+        
+        # ROS控制按钮
+        ros_btn_layout = QHBoxLayout()
+        
+        start_master_btn = QPushButton("启动roscore")
+        start_master_btn.clicked.connect(self._remote_start_master)
+        ros_btn_layout.addWidget(start_master_btn)
+        
+        stop_master_btn = QPushButton("停止roscore")
+        stop_master_btn.clicked.connect(self._remote_stop_master)
+        ros_btn_layout.addWidget(stop_master_btn)
+        
+        start_launch_btn = QPushButton("启动launch")
+        start_launch_btn.clicked.connect(self._remote_start_launch)
+        ros_btn_layout.addWidget(start_launch_btn)
+        
+        stop_launch_btn = QPushButton("停止launch")
+        stop_launch_btn.clicked.connect(self._remote_stop_launch)
+        ros_btn_layout.addWidget(stop_launch_btn)
+        
+        ros_remote_layout.addLayout(ros_btn_layout)
+        
+        # 远程文件浏览器
+        file_browser_group = QGroupBox("远程文件浏览器")
+        file_browser_layout = QVBoxLayout(file_browser_group)
+        
+        # 路径导航
+        path_layout = QHBoxLayout()
+        
+        home_btn = QPushButton("主目录")
+        home_btn.clicked.connect(self._remote_go_home)
+        path_layout.addWidget(home_btn)
+        
+        back_btn = QPushButton("返回上级")
+        back_btn.clicked.connect(self._remote_go_back)
+        path_layout.addWidget(back_btn)
+        
+        self.remote_path_edit = QLineEdit()
+        self.remote_path_edit.setPlaceholderText("远程路径...")
+        self.remote_path_edit.returnPressed.connect(self._remote_goto_path)
+        path_layout.addWidget(self.remote_path_edit)
+        
+        goto_btn = QPushButton("跳转")
+        goto_btn.clicked.connect(self._remote_goto_path)
+        path_layout.addWidget(goto_btn)
+        
+        refresh_file_btn = QPushButton("刷新")
+        refresh_file_btn.clicked.connect(self._refresh_remote_files)
+        path_layout.addWidget(refresh_file_btn)
+        
+        file_browser_layout.addLayout(path_layout)
+        
+        # 文件列表
+        file_list_layout = QHBoxLayout()
+        
+        # 目录树
+        self.remote_dir_tree = QTreeWidget()
+        self.remote_dir_tree.setHeaderLabels(["名称", "大小", "类型", "修改时间"])
+        self.remote_dir_tree.setAlternatingRowColors(True)
+        self.remote_dir_tree.itemDoubleClicked.connect(self._remote_file_double_clicked)
+        self.remote_dir_tree.itemSelectionChanged.connect(self._remote_file_selected)
+        file_list_layout.addWidget(self.remote_dir_tree)
+        
+        # 右侧按钮
+        file_btn_layout = QVBoxLayout()
+        
+        run_btn = QPushButton("运行此文件")
+        run_btn.clicked.connect(self._remote_run_selected_file)
+        file_btn_layout.addWidget(run_btn)
+        
+        add_launch_btn = QPushButton("添加到launch")
+        add_launch_btn.clicked.connect(self._remote_add_to_launch)
+        file_btn_layout.addWidget(add_launch_btn)
+        
+        add_py_btn = QPushButton("添加到py")
+        add_py_btn.clicked.connect(self._remote_add_to_py)
+        file_btn_layout.addWidget(add_py_btn)
+        
+        file_btn_layout.addStretch()
+        
+        # 搜索功能
+        search_layout = QHBoxLayout()
+        self.search_edit = QLineEdit()
+        self.search_edit.setPlaceholderText("搜索文件...")
+        search_layout.addWidget(self.search_edit)
+        
+        search_btn = QPushButton("搜索")
+        search_btn.clicked.connect(self._remote_search_files)
+        search_layout.addWidget(search_btn)
+        file_btn_layout.addLayout(search_layout)
+        
+        file_list_layout.addLayout(file_btn_layout)
+        file_browser_layout.addLayout(file_list_layout)
+        
+        ros_remote_layout.addWidget(file_browser_group)
+        
+        # ROS信息显示
+        ros_info_layout = QHBoxLayout()
+        
+        # 节点列表
+        nodes_group = QGroupBox("ROS节点")
+        nodes_layout = QVBoxLayout(nodes_group)
+        self.remote_nodes_list = QListWidget()
+        nodes_layout.addWidget(self.remote_nodes_list)
+        
+        refresh_nodes_btn = QPushButton("刷新节点")
+        refresh_nodes_btn.clicked.connect(self._refresh_remote_nodes)
+        nodes_layout.addWidget(refresh_nodes_btn)
+        
+        ros_info_layout.addWidget(nodes_group)
+        
+        # 话题列表
+        topics_group = QGroupBox("ROS话题")
+        topics_layout = QVBoxLayout(topics_group)
+        self.remote_topics_list = QListWidget()
+        topics_layout.addWidget(self.remote_topics_list)
+        
+        refresh_topics_btn = QPushButton("刷新话题")
+        refresh_topics_btn.clicked.connect(self._refresh_remote_topics)
+        topics_layout.addWidget(refresh_topics_btn)
+        
+        ros_info_layout.addWidget(topics_group)
+        
+        ros_remote_layout.addLayout(ros_info_layout)
+        
+        # 机器人状态
+        status_layout = QHBoxLayout()
+        
+        self.cpu_label = QLabel("CPU: --")
+        status_layout.addWidget(self.cpu_label)
+        
+        self.mem_label = QLabel("内存: --")
+        status_layout.addWidget(self.mem_label)
+        
+        self.disk_label = QLabel("磁盘: --")
+        status_layout.addWidget(self.disk_label)
+        
+        self.uptime_label = QLabel("运行时间: --")
+        status_layout.addWidget(self.uptime_label)
+        
+        refresh_status_btn = QPushButton("刷新状态")
+        refresh_status_btn.clicked.connect(self._refresh_robot_status)
+        status_layout.addWidget(refresh_status_btn)
+        
+        ros_remote_layout.addLayout(status_layout)
+        
+        # 自定义命令执行
+        custom_cmd_layout = QHBoxLayout()
+        
+        self.custom_cmd_edit = QLineEdit()
+        self.custom_cmd_edit.setPlaceholderText("输入要执行的远程命令...")
+        custom_cmd_layout.addWidget(self.custom_cmd_edit)
+        
+        exec_cmd_btn = QPushButton("执行")
+        exec_cmd_btn.clicked.connect(self._execute_remote_command)
+        custom_cmd_layout.addWidget(exec_cmd_btn)
+        
+        ros_remote_layout.addLayout(custom_cmd_layout)
+        
+        # 命令输出显示
+        self.cmd_output = QPlainTextEdit()
+        self.cmd_output.setReadOnly(True)
+        self.cmd_output.setMaximumHeight(100)
+        ros_remote_layout.addWidget(self.cmd_output)
+        
+        multi_machine_layout.addWidget(ros_remote_group)
+        
+        self.tab_widget.addTab(multi_machine_widget, "多机协同")
+        
+        # 插件管理标签页
+        plugin_widget = QWidget()
+        plugin_layout = QVBoxLayout(plugin_widget)
+        
+        plugin_btn_layout = QHBoxLayout()
+        discover_plugins_btn = QPushButton("发现插件")
+        discover_plugins_btn.clicked.connect(self._discover_plugins)
+        plugin_btn_layout.addWidget(discover_plugins_btn)
+        
+        load_plugin_btn = QPushButton("加载插件")
+        load_plugin_btn.clicked.connect(self._load_plugin)
+        plugin_btn_layout.addWidget(load_plugin_btn)
+        
+        refresh_plugins_btn = QPushButton("刷新列表")
+        refresh_plugins_btn.clicked.connect(self._refresh_plugins)
+        plugin_btn_layout.addWidget(refresh_plugins_btn)
+        
+        plugin_btn_layout.addStretch()
+        plugin_layout.addLayout(plugin_btn_layout)
+        
+        self.plugin_tree = QTreeWidget()
+        self.plugin_tree.setHeaderLabels(["插件名称", "状态", "描述", "版本"])
+        self.plugin_tree.setAlternatingRowColors(True)
+        plugin_layout.addWidget(self.plugin_tree)
+        
+        self.tab_widget.addTab(plugin_widget, "插件管理")
+        
         # 替换占位符
         idx = self._main_layout.indexOf(self._log_box_placeholder)
         if idx >= 0:
             self._main_layout.removeWidget(self._log_box_placeholder)
             self._log_box_placeholder.deleteLater()
             self._main_layout.insertWidget(idx, self.tab_widget)
+        
+        # 加载历史记录
+        self._load_history()
+        
+        # 加载场景列表
+        self._load_scene_list()
+        
+        # 加载配置列表
+        self._load_config_list()
+        
+        # 绑定快捷键
+        self._setup_hotkeys()
         
         # 延迟刷新文件存在性
         self.refresh_file_existence()
@@ -489,6 +1235,14 @@ class MainWindow(QMainWindow):
         self.monitor_timer = QTimer()
         self.monitor_timer.timeout.connect(self.refresh_monitor)
         self.monitor_timer.start(5000)  # 每5秒刷新一次
+        
+        # 启用拖拽支持
+        self.setAcceptDrops(True)
+        
+        # 启动ROS监控定时器
+        self.ros_monitor_timer = QTimer()
+        self.ros_monitor_timer.timeout.connect(self._auto_refresh_ros_monitor)
+        self.ros_monitor_timer.start(10000)  # 每10秒刷新一次
 
     # ---------- UI 构建 ----------
 
@@ -682,6 +1436,7 @@ class MainWindow(QMainWindow):
         task.stop_requested = False
         task.restart_count = 0
         self.log(">>> 启动: %s %s" % (task.path, task.args))
+        self._add_to_history(task.path)
         task.start(ros_setup, ws_setup, self.on_process_output, self.on_process_finished)
         if task.is_running():
             self._set_status(table, path_item, True)
@@ -769,6 +1524,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.information(self, "已存在", "该文件已在列表中:\n%s" % path)
                 return
         self._add_row(table, normalize_task(path), kind)
+        self._add_to_history(path)
 
     def start_selected(self, kind):
         table = self._table_of(kind)
@@ -996,18 +1752,27 @@ class MainWindow(QMainWindow):
         
         # 读取更新配置
         config_path = os.path.join(BASE_DIR, "update_config.json")
+        self.log("配置路径: %s" % config_path)
+        self.log("文件存在: %s" % os.path.exists(config_path))
+        
         if os.path.exists(config_path):
-            with open(config_path, "r", encoding="utf-8") as f:
-                update_config = json.load(f)
-            repo_owner = update_config.get("repo_owner", "")
-            repo_name = update_config.get("repo_name", "")
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    update_config = json.load(f)
+                repo_owner = update_config.get("repo_owner", "")
+                repo_name = update_config.get("repo_name", "")
+                self.log("repo_owner: %s, repo_name: %s" % (repo_owner, repo_name))
+            except Exception as e:
+                self.log("读取配置失败: %s" % str(e))
+                repo_owner = ""
+                repo_name = ""
         else:
             repo_owner = ""
             repo_name = ""
         
         if not repo_owner or not repo_name:
             QMessageBox.information(self, "检查更新", 
-                "未配置更新服务器。请编辑 update_config.json 文件。")
+                "未配置更新服务器。请编辑 update_config.json 文件。\n路径: %s" % config_path)
             return
         
         # 设置更新服务器
@@ -1087,6 +1852,1539 @@ class MainWindow(QMainWindow):
             self.mem_label.setText("内存: psutil未安装")
         except Exception as e:
             self.log(f"监控刷新失败: {e}")
+
+
+    # ---------- 历史记录 ----------
+
+    def _load_history(self):
+        """加载历史记录到列表"""
+        if not hasattr(self, 'history_list'):
+            return
+        self.history_list.clear()
+        history = self.config.get("history", [])
+        for item in history[-50:]:  # 最多显示50条
+            self.history_list.addItem(item)
+
+    def _add_to_history(self, path):
+        """添加文件到历史记录"""
+        if not path:
+            return
+        history = self.config.get("history", [])
+        # 避免重复
+        if path in history:
+            history.remove(path)
+        history.append(path)
+        # 最多保留100条
+        if len(history) > 100:
+            history = history[-100:]
+        self.config["history"] = history
+        self.save_config()
+        # 更新UI
+        if hasattr(self, 'history_list'):
+            self.history_list.clear()
+            for item in history[-50:]:
+                self.history_list.addItem(item)
+
+    def _on_history_clicked(self, item):
+        """双击历史记录项"""
+        path = item.text()
+        if not os.path.exists(path):
+            QMessageBox.warning(self, "文件不存在", f"文件已不存在:\n{path}")
+            return
+        
+        # 根据文件类型添加到对应的表格
+        if path.endswith('.launch'):
+            kind = "launch"
+        elif path.endswith('.py'):
+            kind = "py"
+        else:
+            # 询问用户
+            reply = QMessageBox.question(self, "选择类型",
+                "该文件应添加到哪个类别？",
+                QMessageBox.Yes | QMessageBox.No)
+            kind = "launch" if reply == QMessageBox.Yes else "py"
+        
+        table = self._table_of(kind)
+        # 检查是否已存在
+        for r, task, _ in self._rows_of(table):
+            if task.path == path:
+                QMessageBox.information(self, "已存在", "该文件已在列表中")
+                return
+        
+        self._add_row(table, normalize_task(path), kind)
+        self.log(f"从历史记录加载: {path}")
+
+    def _clear_history(self):
+        """清空历史记录"""
+        reply = QMessageBox.question(self, "确认清空",
+            "确定要清空所有历史记录吗？",
+            QMessageBox.Yes | QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            self.config["history"] = []
+            self.save_config()
+            if hasattr(self, 'history_list'):
+                self.history_list.clear()
+            self.log("历史记录已清空")
+
+    # ---------- 进度条 ----------
+
+    def _update_progress(self, current, total):
+        """更新进度条"""
+        if hasattr(self, 'global_progress'):
+            if total > 0:
+                self.global_progress.setValue(int(current / total * 100))
+                self.global_progress.show()
+            else:
+                self.global_progress.hide()
+
+    # ---------- 场景管理 ----------
+
+    def _load_scene_list(self):
+        """加载场景列表"""
+        if not hasattr(self, 'scene_list'):
+            return
+        self.scene_list.clear()
+        scenes = self.scene_manager.get_scene_list()
+        for scene in scenes:
+            text = f"{scene['name']} ({scene['launch_count']}launch, {scene['py_count']}py)"
+            self.scene_list.addItem(text)
+
+    def _create_scene(self):
+        """创建新场景"""
+        from PyQt5.QtWidgets import QInputDialog
+        name, ok = QInputDialog.getText(self, "创建场景", "场景名称:")
+        if ok and name:
+            # 获取当前配置
+            launch_files = [t.to_dict() for _, t, _ in self._rows_of(self.launch_table)]
+            py_files = [t.to_dict() for _, t, _ in self._rows_of(self.py_table)]
+            
+            self.scene_manager.create_scene(
+                name,
+                launch_files=launch_files,
+                py_files=py_files,
+                ros_setup=self.ros_setup_edit.text(),
+                ws_setup=self.ws_setup_edit.text(),
+                start_delay=self.launch_table.property("delay_spin").value()
+            )
+            self._load_scene_list()
+            self.log(f"创建场景: {name}")
+
+    def _save_current_as_scene(self):
+        """将当前配置保存为场景"""
+        from PyQt5.QtWidgets import QInputDialog
+        name, ok = QInputDialog.getText(self, "保存场景", "场景名称:")
+        if ok and name:
+            launch_files = [t.to_dict() for _, t, _ in self._rows_of(self.launch_table)]
+            py_files = [t.to_dict() for _, t, _ in self._rows_of(self.py_table)]
+            
+            self.scene_manager.create_scene(
+                name,
+                launch_files=launch_files,
+                py_files=py_files,
+                ros_setup=self.ros_setup_edit.text(),
+                ws_setup=self.ws_setup_edit.text(),
+                start_delay=self.launch_table.property("delay_spin").value()
+            )
+            self._load_scene_list()
+            self.log(f"保存当前配置为场景: {name}")
+
+    def _on_scene_clicked(self, item):
+        """双击场景项"""
+        scene_name = item.text().split(" (")[0]
+        self._apply_scene_by_name(scene_name)
+
+    def _apply_scene(self):
+        """应用选中的场景"""
+        current_item = self.scene_list.currentItem()
+        if current_item:
+            scene_name = current_item.text().split(" (")[0]
+            self._apply_scene_by_name(scene_name)
+
+    def _apply_scene_by_name(self, scene_name):
+        """按名称应用场景"""
+        config = self.scene_manager.apply_scene(scene_name)
+        if not config:
+            QMessageBox.warning(self, "错误", f"无法加载场景: {scene_name}")
+            return
+        
+        # 清空当前列表
+        self.launch_table.setRowCount(0)
+        self.py_table.setRowCount(0)
+        
+        # 加载场景配置
+        self.ros_setup_edit.setText(config.get("ros_setup", ""))
+        self.ws_setup_edit.setText(config.get("ws_setup", ""))
+        
+        for entry in config.get("launch_files", []):
+            self._add_row(self.launch_table, normalize_task(entry), "launch")
+        
+        for entry in config.get("py_files", []):
+            self._add_row(self.py_table, normalize_task(entry), "py")
+        
+        delay_spin = self.launch_table.property("delay_spin")
+        if delay_spin:
+            delay_spin.setValue(config.get("start_delay", 3))
+        
+        self.config["current_scene"] = scene_name
+        self.save_config()
+        self.log(f"应用场景: {scene_name}")
+
+    def _delete_scene(self):
+        """删除场景"""
+        current_item = self.scene_list.currentItem()
+        if not current_item:
+            return
+        
+        scene_name = current_item.text().split(" (")[0]
+        reply = QMessageBox.question(self, "确认删除",
+            f"确定要删除场景 '{scene_name}' 吗？",
+            QMessageBox.Yes | QMessageBox.No)
+        
+        if reply == QMessageBox.Yes:
+            self.scene_manager.delete_scene(scene_name)
+            self._load_scene_list()
+            self.log(f"删除场景: {scene_name}")
+
+    # ---------- 翻译工具 ----------
+
+    def _translate_text(self):
+        """翻译文本"""
+        text = self.translator_input.text().strip()
+        if text:
+            translated = self.translator.translate(text)
+            self.translator_output.setText(translated)
+
+    def _copy_translation(self):
+        """复制翻译结果"""
+        text = self.translator_output.text()
+        if text:
+            QApplication.clipboard().setText(text)
+            self.log("翻译结果已复制到剪贴板")
+
+    def _toggle_translation(self):
+        """切换翻译功能"""
+        enabled = self.translation_enabled_cb.isChecked()
+        self.config["translation_enabled"] = enabled
+        self.save_config()
+        self.log(f"自动翻译: {'启用' if enabled else '禁用'}")
+
+    # ---------- 拖拽支持 ----------
+
+    def dragEnterEvent(self, event):
+        """拖拽进入事件"""
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        """拖拽放下事件"""
+        urls = event.mimeData().urls()
+        for url in urls:
+            path = url.toLocalFile()
+            if os.path.isfile(path):
+                self._add_file_by_path(path)
+
+    def _add_file_by_path(self, path):
+        """根据路径添加文件"""
+        if path.endswith('.launch'):
+            kind = "launch"
+        elif path.endswith('.py'):
+            kind = "py"
+        else:
+            return
+        
+        table = self._table_of(kind)
+        for r, task, _ in self._rows_of(table):
+            if task.path == path:
+                return
+        
+        self._add_row(table, normalize_task(path), kind)
+        self._add_to_history(path)
+        self.log(f"通过拖拽添加: {path}")
+
+    # ---------- 日志分离 ----------
+
+    def on_process_output(self, task, text):
+        """进程输出回调（带日志分离）"""
+        name = os.path.basename(task.path)
+        
+        # 写入任务日志
+        self.log_manager.write_log(name, text)
+        
+        # 写入合并日志
+        for line in text.rstrip("\n").splitlines():
+            log_line = "[%s] %s" % (name, line)
+            
+            # 自动翻译错误信息
+            if self.config.get("translation_enabled", True):
+                log_line = self.translator.translate(log_line)
+            
+            self.log(log_line)
+
+    # ---------- ROS监控 ----------
+
+    def _refresh_ros_master(self):
+        """刷新ROS主节点状态"""
+        self.ros_monitor.set_ros_env(
+            self.ros_setup_edit.text().strip(),
+            self.ws_setup_edit.text().strip()
+        )
+        result = self.ros_monitor.check_ros_master()
+        if result["running"]:
+            self.ros_master_status.setText("状态: 运行中 ✓")
+            self.ros_master_status.setStyleSheet("color: #66bb6a; font-weight: bold;")
+        else:
+            self.ros_master_status.setText("状态: 未运行 ✗")
+            self.ros_master_status.setStyleSheet("color: #ef5350; font-weight: bold;")
+
+    def _refresh_ros_nodes(self):
+        """刷新ROS节点列表"""
+        self.ros_monitor.set_ros_env(
+            self.ros_setup_edit.text().strip(),
+            self.ws_setup_edit.text().strip()
+        )
+        result = self.ros_monitor.get_ros_nodes()
+        self.node_tree.clear()
+        
+        if result["error"]:
+            item = QTreeWidgetItem(["错误: " + result["error"]])
+            self.node_tree.addTopLevelItem(item)
+            return
+        
+        for node in result["nodes"]:
+            item = QTreeWidgetItem([node, "存活", "", ""])
+            self.node_tree.addTopLevelItem(item)
+        
+        self.log(f"刷新节点列表: {len(result['nodes'])} 个节点")
+
+    def _show_node_info(self):
+        """显示节点信息"""
+        current_item = self.node_tree.currentItem()
+        if not current_item:
+            QMessageBox.information(self, "提示", "请先选择一个节点")
+            return
+        
+        node_name = current_item.text(0)
+        result = self.ros_monitor.get_node_info(node_name)
+        
+        if result["error"]:
+            QMessageBox.warning(self, "错误", f"获取节点信息失败:\n{result['error']}")
+            return
+        
+        info = result["info"]
+        msg = f"节点: {info['name']}\n"
+        msg += f"PID: {info['pid'] or '未知'}\n"
+        msg += f"\n发布者 ({len(info['publishers'])}):\n"
+        for pub in info['publishers'][:5]:
+            msg += f"  - {pub}\n"
+        msg += f"\n订阅者 ({len(info['subscribers'])}):\n"
+        for sub in info['subscribers'][:5]:
+            msg += f"  - {sub}\n"
+        msg += f"\n服务 ({len(info['services'])}):\n"
+        for svc in info['services'][:5]:
+            msg += f"  - {svc}\n"
+        
+        QMessageBox.information(self, "节点信息", msg)
+
+    def _refresh_ros_topics(self):
+        """刷新ROS Topic列表"""
+        self.ros_monitor.set_ros_env(
+            self.ros_setup_edit.text().strip(),
+            self.ws_setup_edit.text().strip()
+        )
+        result = self.ros_monitor.get_ros_topics()
+        self.topic_tree.clear()
+        
+        if result["error"]:
+            item = QTreeWidgetItem(["错误: " + result["error"]])
+            self.topic_tree.addTopLevelItem(item)
+            return
+        
+        for topic in result["topics"]:
+            item = QTreeWidgetItem([topic, "", "", ""])
+            self.topic_tree.addTopLevelItem(item)
+        
+        self.log(f"刷新Topic列表: {len(result['topics'])} 个话题")
+
+    def _show_topic_info(self):
+        """显示Topic信息"""
+        current_item = self.topic_tree.currentItem()
+        if not current_item:
+            QMessageBox.information(self, "提示", "请先选择一个Topic")
+            return
+        
+        topic_name = current_item.text(0)
+        result = self.ros_monitor.get_topic_info(topic_name)
+        
+        if result["error"]:
+            QMessageBox.warning(self, "错误", f"获取Topic信息失败:\n{result['error']}")
+            return
+        
+        info = result["info"]
+        msg = f"Topic: {info['name']}\n"
+        msg += f"类型: {info['type'] or '未知'}\n"
+        msg += f"\n发布者 ({len(info['publishers'])}):\n"
+        for pub in info['publishers'][:5]:
+            msg += f"  - {pub}\n"
+        msg += f"\n订阅者 ({len(info['subscribers'])}):\n"
+        for sub in info['subscribers'][:5]:
+            msg += f"  - {sub}\n"
+        
+        QMessageBox.information(self, "Topic信息", msg)
+
+    def _refresh_network(self):
+        """刷新网络状态"""
+        self.ros_monitor.set_ros_env(
+            self.ros_setup_edit.text().strip(),
+            self.ws_setup_edit.text().strip()
+        )
+        
+        master_uri = self.ros_monitor.get_ros_master_uri()
+        master_status = self.ros_monitor.check_ros_master()
+        
+        info = f"ROS_MASTER_URI: {master_uri}\n"
+        info += f"主节点状态: {'运行中' if master_status['running'] else '未运行'}\n"
+        
+        # 检查常用端口
+        ports = [(11311, "ROS主节点"), (11312, "ROS节点")]
+        for port, name in ports:
+            is_open = self.ros_monitor.check_port_open("localhost", port)
+            info += f"端口 {port} ({name}): {'开放' if is_open else '关闭'}\n"
+        
+        self.network_info.setPlainText(info)
+
+    def _auto_refresh_ros_monitor(self):
+        """自动刷新ROS监控"""
+        # 更新ROS环境
+        self.ros_monitor.set_ros_env(
+            self.ros_setup_edit.text().strip(),
+            self.ws_setup_edit.text().strip()
+        )
+        
+        # 刷新主节点状态
+        result = self.ros_monitor.check_ros_master()
+        if result["running"]:
+            self.ros_master_status.setText("状态: 运行中 ✓")
+            self.ros_master_status.setStyleSheet("color: #66bb6a; font-weight: bold;")
+        else:
+            self.ros_master_status.setText("状态: 未运行 ✗")
+            self.ros_master_status.setStyleSheet("color: #ef5350; font-weight: bold;")
+
+    # ---------- 磁盘监控 ----------
+
+    def _refresh_disk(self):
+        """刷新磁盘信息"""
+        result = self.ros_monitor.get_disk_usage()
+        self.disk_tree.clear()
+        
+        if result["error"]:
+            item = QTreeWidgetItem(["错误: " + result["error"]])
+            self.disk_tree.addTopLevelItem(item)
+            return
+        
+        for part in result["partitions"]:
+            if "total" in part:
+                # psutil格式
+                item = QTreeWidgetItem([
+                    part["device"],
+                    part["mountpoint"],
+                    self.ros_monitor._format_size(part["total"]),
+                    self.ros_monitor._format_size(part["used"]),
+                    self.ros_monitor._format_size(part["free"]),
+                    f"{part['percent']}%"
+                ])
+            else:
+                # df格式
+                item = QTreeWidgetItem([
+                    part["device"],
+                    part["mountpoint"],
+                    part.get("size", "N/A"),
+                    part.get("used", "N/A"),
+                    part.get("available", "N/A"),
+                    part.get("percent", "N/A")
+                ])
+            self.disk_tree.addTopLevelItem(item)
+
+    def _refresh_log_size(self):
+        """刷新日志目录大小"""
+        log_dir = os.path.join(BASE_DIR, "logs")
+        result = self.ros_monitor.get_log_directory_size(log_dir)
+        self.log_size_label.setText(f"日志目录大小: {result['size_human']}")
+
+    def _clean_old_logs(self):
+        """清理旧日志"""
+        reply = QMessageBox.question(self, "确认清理",
+            "确定要清理30天前的日志文件吗？",
+            QMessageBox.Yes | QMessageBox.No)
+        
+        if reply == QMessageBox.Yes:
+            self.log_manager.cleanup_old_logs(days=30)
+            self._refresh_log_size()
+            self.log("已清理旧日志文件")
+
+    # ---------- 快捷键 ----------
+
+    def _setup_hotkeys(self):
+        """设置快捷键"""
+        # F5 - 一键启动所有任务
+        shortcut_start = QShortcut(QKeySequence("F5"), self)
+        shortcut_start.activated.connect(self.start_everything)
+        
+        # F6 - 停止所有任务
+        shortcut_stop = QShortcut(QKeySequence("F6"), self)
+        shortcut_stop.activated.connect(self.stop_everything)
+        
+        # F7 - 启动选中的launch任务
+        shortcut_start_launch = QShortcut(QKeySequence("F7"), self)
+        shortcut_start_launch.activated.connect(lambda: self.start_selected("launch"))
+        
+        # F8 - 停止选中的launch任务
+        shortcut_stop_launch = QShortcut(QKeySequence("F8"), self)
+        shortcut_stop_launch.activated.connect(lambda: self.stop_selected("launch"))
+        
+        # Ctrl+L - 清空日志
+        shortcut_clear_log = QShortcut(QKeySequence("Ctrl+L"), self)
+        shortcut_clear_log.activated.connect(self.log_view.clear)
+        
+        # Ctrl+S - 保存配置
+        shortcut_save = QShortcut(QKeySequence("Ctrl+S"), self)
+        shortcut_save.activated.connect(self.save_config)
+        
+        # Ctrl+R - 刷新监控
+        shortcut_refresh = QShortcut(QKeySequence("Ctrl+R"), self)
+        shortcut_refresh.activated.connect(self.refresh_monitor)
+
+    # ---------- 多配置切换 ----------
+
+    def _load_config_list(self):
+        """加载配置列表"""
+        if not hasattr(self, 'config_combo'):
+            return
+        
+        self.config_combo.clear()
+        
+        # 获取所有配置文件
+        config_dir = os.path.join(BASE_DIR, "configs")
+        if not os.path.exists(config_dir):
+            os.makedirs(config_dir, exist_ok=True)
+        
+        # 添加默认配置
+        self.config_combo.addItem("默认配置")
+        
+        # 添加其他配置文件
+        for f in os.listdir(config_dir):
+            if f.endswith(".json"):
+                config_name = f[:-5]  # 移除.json
+                self.config_combo.addItem(config_name)
+        
+        # 设置当前配置
+        current_config = self.config.get("current_config", "默认配置")
+        index = self.config_combo.findText(current_config)
+        if index >= 0:
+            self.config_combo.setCurrentIndex(index)
+
+    def _on_config_changed(self, config_name):
+        """配置切换"""
+        if config_name == "默认配置":
+            return
+        
+        config_file = os.path.join(BASE_DIR, "configs", f"{config_name}.json")
+        if os.path.exists(config_file):
+            try:
+                with open(config_file, "r", encoding="utf-8") as f:
+                    new_config = json.load(f)
+                
+                # 应用新配置
+                self.config.update(new_config)
+                self.ros_setup_edit.setText(self.config.get("ros_setup", ""))
+                self.ws_setup_edit.setText(self.config.get("ws_setup", ""))
+                
+                # 清空并重新加载任务列表
+                self.launch_table.setRowCount(0)
+                self.py_table.setRowCount(0)
+                
+                for entry in self.config.get("launch_files", []):
+                    self._add_row(self.launch_table, normalize_task(entry), "launch")
+                
+                for entry in self.config.get("py_files", []):
+                    self._add_row(self.py_table, normalize_task(entry), "py")
+                
+                delay_spin = self.launch_table.property("delay_spin")
+                if delay_spin:
+                    delay_spin.setValue(self.config.get("start_delay", 3))
+                
+                self.config["current_config"] = config_name
+                self.save_config()
+                self.log(f"切换到配置: {config_name}")
+            except Exception as e:
+                QMessageBox.warning(self, "切换失败", f"加载配置失败:\n{str(e)}")
+
+    def _save_current_config(self):
+        """保存当前配置"""
+        from PyQt5.QtWidgets import QInputDialog
+        
+        # 获取当前配置名
+        current_config = self.config.get("current_config", "默认配置")
+        
+        # 弹出输入框
+        config_name, ok = QInputDialog.getText(
+            self, "保存配置", 
+            "配置名称:",
+            text=current_config
+        )
+        
+        if not ok or not config_name:
+            return
+        
+        # 构建配置
+        config_data = {
+            "ros_setup": self.ros_setup_edit.text().strip(),
+            "ws_setup": self.ws_setup_edit.text().strip(),
+            "start_delay": self.launch_table.property("delay_spin").value(),
+            "launch_files": [t.to_dict() for _, t, _ in self._rows_of(self.launch_table)],
+            "py_files": [t.to_dict() for _, t, _ in self._rows_of(self.py_table)],
+        }
+        
+        # 保存配置文件
+        config_dir = os.path.join(BASE_DIR, "configs")
+        os.makedirs(config_dir, exist_ok=True)
+        
+        config_file = os.path.join(config_dir, f"{config_name}.json")
+        try:
+            with open(config_file, "w", encoding="utf-8") as f:
+                json.dump(config_data, f, ensure_ascii=False, indent=2)
+            
+            self.config["current_config"] = config_name
+            self.save_config()
+            
+            # 刷新配置列表
+            self._load_config_list()
+            
+            # 设置当前配置
+            index = self.config_combo.findText(config_name)
+            if index >= 0:
+                self.config_combo.setCurrentIndex(index)
+            
+            self.log(f"配置已保存: {config_name}")
+        except Exception as e:
+            QMessageBox.warning(self, "保存失败", f"保存配置失败:\n{str(e)}")
+
+    # ---------- 批量操作 ----------
+
+    def _batch_select_all(self):
+        """全选所有任务"""
+        for kind in ("launch", "py"):
+            table = self._table_of(kind)
+            table.selectAll()
+
+    def _batch_deselect_all(self):
+        """取消全选"""
+        for kind in ("launch", "py"):
+            table = self._table_of(kind)
+            table.clearSelection()
+
+    def _batch_set_restart(self, enabled):
+        """批量设置崩溃重启"""
+        for kind in ("launch", "py"):
+            table = self._table_of(kind)
+            for r, task, item in self._rows_of(table):
+                task.auto_restart = enabled
+                restart_item = table.item(r, COL_RESTART)
+                if restart_item:
+                    restart_item.setCheckState(Qt.Checked if enabled else Qt.Unchecked)
+        
+        self.save_config()
+        self.log(f"批量{'启用' if enabled else '禁用'}崩溃重启")
+
+    def _batch_set_autostart(self, enabled):
+        """批量设置自启动"""
+        for kind in ("launch", "py"):
+            table = self._table_of(kind)
+            for r, task, item in self._rows_of(table):
+                task.auto_start = enabled
+                autostart_item = table.item(r, COL_AUTOSTART)
+                if autostart_item:
+                    autostart_item.setCheckState(Qt.Checked if enabled else Qt.Unchecked)
+        
+        self.save_config()
+        self.log(f"批量{'启用' if enabled else '禁用'}自启动")
+
+    # ---------- 任务调度 ----------
+
+    def _add_schedule(self):
+        """添加定时任务"""
+        from PyQt5.QtWidgets import QInputDialog
+        
+        name, ok = QInputDialog.getText(self, "添加定时任务", "任务名称:")
+        if not ok or not name:
+            return
+        
+        # 选择任务类型
+        task_type, ok = QInputDialog.getItem(self, "选择任务类型", "类型:", 
+                                             ["launch", "py"], 0, False)
+        if not ok:
+            return
+        
+        # 选择任务路径
+        if task_type == "launch":
+            path, _ = QFileDialog.getOpenFileName(self, "选择launch文件", 
+                                                  os.path.expanduser("~"), 
+                                                  "Launch文件 (*.launch)")
+        else:
+            path, _ = QFileDialog.getOpenFileName(self, "选择Python文件", 
+                                                  os.path.expanduser("~"), 
+                                                  "Python文件 (*.py)")
+        
+        if not path:
+            return
+        
+        # 选择调度类型
+        schedule_type, ok = QInputDialog.getItem(self, "选择调度类型", "类型:",
+                                                 ["once", "repeat"], 0, False)
+        if not ok:
+            return
+        
+        interval = None
+        if schedule_type == "repeat":
+            interval, ok = QInputDialog.getInt(self, "设置间隔", "间隔秒数:", 3600, 60, 86400)
+            if not ok:
+                return
+        
+        self.task_scheduler.add_schedule(
+            name, task_type, path, schedule_type, interval=interval
+        )
+        self._refresh_schedules()
+        self.log(f"添加定时任务: {name}")
+
+    def _refresh_schedules(self):
+        """刷新调度列表"""
+        self.schedule_tree.clear()
+        schedules = self.task_scheduler.get_schedule_list()
+        
+        for schedule in schedules:
+            item = QTreeWidgetItem([
+                schedule["name"],
+                schedule["task_type"],
+                schedule["task_path"],
+                "启用" if schedule["enabled"] else "禁用",
+                schedule.get("next_run", "未计划")
+            ])
+            self.schedule_tree.addTopLevelItem(item)
+
+    # ---------- 仿真控制 ----------
+
+    def _pause_simulation(self):
+        """暂停仿真"""
+        self.sim_controller.set_ros_env(
+            self.ros_setup_edit.text().strip(),
+            self.ws_setup_edit.text().strip()
+        )
+        result = self.sim_controller.pause_simulation()
+        if result["success"]:
+            self.log("仿真已暂停")
+        else:
+            QMessageBox.warning(self, "错误", f"暂停仿真失败:\n{result['error']}")
+
+    def _unpause_simulation(self):
+        """继续仿真"""
+        self.sim_controller.set_ros_env(
+            self.ros_setup_edit.text().strip(),
+            self.ws_setup_edit.text().strip()
+        )
+        result = self.sim_controller.unpause_simulation()
+        if result["success"]:
+            self.log("仿真已继续")
+        else:
+            QMessageBox.warning(self, "错误", f"继续仿真失败:\n{result['error']}")
+
+    def _reset_simulation(self):
+        """重置仿真"""
+        self.sim_controller.set_ros_env(
+            self.ros_setup_edit.text().strip(),
+            self.ws_setup_edit.text().strip()
+        )
+        result = self.sim_controller.reset_simulation()
+        if result["success"]:
+            self.log("仿真已重置")
+        else:
+            QMessageBox.warning(self, "错误", f"重置仿真失败:\n{result['error']}")
+
+    def _spawn_model(self):
+        """生成模型"""
+        from PyQt5.QtWidgets import QInputDialog
+        
+        model_name, ok = QInputDialog.getText(self, "生成模型", "模型名称:")
+        if not ok or not model_name:
+            return
+        
+        self.sim_controller.set_ros_env(
+            self.ros_setup_edit.text().strip(),
+            self.ws_setup_edit.text().strip()
+        )
+        result = self.sim_controller.spawn_model(model_name)
+        if result["success"]:
+            self.log(f"模型已生成: {model_name}")
+        else:
+            QMessageBox.warning(self, "错误", f"生成模型失败:\n{result['error']}")
+
+    def _delete_model(self):
+        """删除模型"""
+        from PyQt5.QtWidgets import QInputDialog
+        
+        model_name, ok = QInputDialog.getText(self, "删除模型", "模型名称:")
+        if not ok or not model_name:
+            return
+        
+        self.sim_controller.set_ros_env(
+            self.ros_setup_edit.text().strip(),
+            self.ws_setup_edit.text().strip()
+        )
+        result = self.sim_controller.delete_model(model_name)
+        if result["success"]:
+            self.log(f"模型已删除: {model_name}")
+        else:
+            QMessageBox.warning(self, "错误", f"删除模型失败:\n{result['error']}")
+
+    # ---------- 参数服务器 ----------
+
+    def _refresh_params(self):
+        """刷新参数列表"""
+        self.param_server.set_ros_env(
+            self.ros_setup_edit.text().strip(),
+            self.ws_setup_edit.text().strip()
+        )
+        result = self.param_server.get_all_params()
+        self.param_tree.clear()
+        
+        if result.get("error"):
+            QMessageBox.warning(self, "错误", f"获取参数失败:\n{result['error']}")
+            return
+        
+        for param in result["params"]:
+            value_result = self.param_server.get_param_value(param)
+            value = value_result.get("value", "")
+            type_result = self.param_server.get_param_type(param)
+            param_type = type_result.get("type", "unknown")
+            
+            item = QTreeWidgetItem([param, str(value)[:50], param_type])
+            self.param_tree.addTopLevelItem(item)
+
+    def _export_params(self):
+        """导出参数"""
+        path, _ = QFileDialog.getSaveFileName(self, "导出参数", 
+                                              os.path.expanduser("~/params.json"),
+                                              "JSON文件 (*.json)")
+        if not path:
+            return
+        
+        self.param_server.set_ros_env(
+            self.ros_setup_edit.text().strip(),
+            self.ws_setup_edit.text().strip()
+        )
+        result = self.param_server.export_params(path)
+        if result["success"]:
+            self.log(f"参数已导出: {path} ({result['count']}个参数)")
+        else:
+            QMessageBox.warning(self, "错误", f"导出参数失败:\n{result['error']}")
+
+    def _import_params(self):
+        """导入参数"""
+        path, _ = QFileDialog.getOpenFileName(self, "导入参数",
+                                              os.path.expanduser("~"),
+                                              "JSON文件 (*.json)")
+        if not path:
+            return
+        
+        self.param_server.set_ros_env(
+            self.ros_setup_edit.text().strip(),
+            self.ws_setup_edit.text().strip()
+        )
+        result = self.param_server.import_params(path)
+        if result["success"]:
+            self.log(f"参数已导入: 成功{result['imported']}个, 失败{result['errors']}个")
+        else:
+            QMessageBox.warning(self, "错误", f"导入参数失败:\n{result['error']}")
+
+    # ---------- 消息录制 ----------
+
+    def _toggle_recording(self):
+        """切换录制状态"""
+        if self.msg_recorder.is_recording():
+            result = self.msg_recorder.stop_recording()
+            if result["success"]:
+                self.record_btn.setText("开始录制")
+                self.log("录制已停止")
+            else:
+                QMessageBox.warning(self, "错误", f"停止录制失败:\n{result['error']}")
+        else:
+            result = self.msg_recorder.start_recording()
+            if result["success"]:
+                self.record_btn.setText("停止录制")
+                self.log(f"录制已开始: {result['bag_path']}")
+            else:
+                QMessageBox.warning(self, "错误", f"开始录制失败:\n{result['error']}")
+
+    def _play_bag(self):
+        """播放Bag文件"""
+        path, _ = QFileDialog.getOpenFileName(self, "选择Bag文件",
+                                              self.msg_recorder.bag_dir,
+                                              "Bag文件 (*.bag)")
+        if not path:
+            return
+        
+        self.msg_recorder.set_ros_env(
+            self.ros_setup_edit.text().strip(),
+            self.ws_setup_edit.text().strip()
+        )
+        result = self.msg_recorder.play_bag(path)
+        if result["success"]:
+            self.log(f"正在播放: {path}")
+        else:
+            QMessageBox.warning(self, "错误", f"播放Bag文件失败:\n{result['error']}")
+
+    def _refresh_bags(self):
+        """刷新Bag文件列表"""
+        result = self.msg_recorder.get_bag_files()
+        self.bag_tree.clear()
+        
+        for bag in result["files"]:
+            size_mb = bag["size"] / (1024 * 1024)
+            item = QTreeWidgetItem([
+                bag["name"],
+                f"{size_mb:.2f} MB",
+                bag["modified"]
+            ])
+            self.bag_tree.addTopLevelItem(item)
+
+    # ---------- 日志分析 ----------
+
+    def _analyze_all_logs(self):
+        """分析所有日志"""
+        analysis = self.log_analyzer.analyze_all_logs()
+        
+        if "error" in analysis:
+            QMessageBox.warning(self, "错误", f"分析日志失败:\n{analysis['error']}")
+            return
+        
+        report = self.log_analyzer.generate_report(analysis)
+        self.analysis_result.setPlainText(report)
+        self.log(f"日志分析完成: {analysis['total_errors']}个错误, {analysis['total_warnings']}个警告")
+
+    def _search_errors(self):
+        """搜索错误"""
+        from PyQt5.QtWidgets import QInputDialog
+        
+        keyword, ok = QInputDialog.getText(self, "搜索错误", "关键词:")
+        if not ok:
+            return
+        
+        results = self.log_analyzer.search_errors(keyword=keyword)
+        
+        report = f"搜索结果: {len(results)}条匹配\n\n"
+        for r in results[:50]:  # 最多显示50条
+            report += f"[{r['file']}] 行{r['line']}: {r['content'][:100]}\n"
+        
+        self.analysis_result.setPlainText(report)
+
+    def _export_report(self):
+        """导出分析报告"""
+        path, _ = QFileDialog.getSaveFileName(self, "导出报告",
+                                              os.path.expanduser("~/log_report.txt"),
+                                              "文本文件 (*.txt)")
+        if not path:
+            return
+        
+        analysis = self.log_analyzer.analyze_all_logs()
+        report = self.log_analyzer.generate_report(analysis, path)
+        self.log(f"报告已导出: {path}")
+
+    # ---------- 多机协同 ----------
+
+    def _get_selected_machine(self):
+        """获取当前选中的机器"""
+        current_item = self.machine_tree.currentItem()
+        if not current_item:
+            return None
+        return current_item.text(0)
+
+    def _on_machine_selected(self):
+        """机器选择变化"""
+        machine_name = self._get_selected_machine()
+        if machine_name:
+            self._refresh_remote_nodes()
+            self._refresh_remote_topics()
+            self._refresh_robot_status()
+
+    def _add_machine(self):
+        """添加机器"""
+        from PyQt5.QtWidgets import QInputDialog
+        
+        name, ok = QInputDialog.getText(self, "添加机器", "机器名称:")
+        if not ok or not name:
+            return
+        
+        hostname, ok = QInputDialog.getText(self, "添加机器", "主机名/IP:")
+        if not ok or not hostname:
+            return
+        
+        username, ok = QInputDialog.getText(self, "添加机器", "用户名:")
+        if not ok or not username:
+            return
+        
+        port, ok = QInputDialog.getInt(self, "添加机器", "SSH端口:", 22, 1, 65535)
+        if not ok:
+            return
+        
+        password, ok = QInputDialog.getText(self, "添加机器", "密码(可选，用于免密登录):", 
+                                           QLineEdit.Password)
+        if not ok:
+            password = None
+        
+        ros_setup, ok = QInputDialog.getText(self, "添加机器", "ROS环境配置:", 
+                                            "source ~/.bashrc")
+        if not ok:
+            ros_setup = "source ~/.bashrc"
+        
+        self.multi_machine.add_machine(name, hostname, username, port, password, ros_setup)
+        self._refresh_machines()
+        self.log(f"添加机器: {name}")
+
+    def _test_machine_connection(self):
+        """测试机器连接"""
+        machine_name = self._get_selected_machine()
+        if not machine_name:
+            QMessageBox.information(self, "提示", "请先选择一台机器")
+            return
+        
+        result = self.multi_machine.test_connection(machine_name)
+        
+        if result["success"]:
+            QMessageBox.information(self, "成功", f"连接成功!")
+            self._refresh_machines()
+        else:
+            QMessageBox.warning(self, "失败", f"连接失败:\n{result['error']}")
+
+    def _setup_machine_key(self):
+        """设置SSH密钥"""
+        machine_name = self._get_selected_machine()
+        if not machine_name:
+            QMessageBox.information(self, "提示", "请先选择一台机器")
+            return
+        
+        result = self.multi_machine.setup_ssh_key(machine_name)
+        if result["success"]:
+            QMessageBox.information(self, "成功", result.get("message", "密钥设置成功"))
+        else:
+            QMessageBox.warning(self, "失败", f"密钥设置失败:\n{result['error']}")
+
+    def _refresh_machines(self):
+        """刷新机器列表"""
+        self.machine_tree.clear()
+        machines = self.multi_machine.get_machine_list()
+        
+        for machine in machines:
+            item = QTreeWidgetItem([
+                machine["name"],
+                machine["hostname"],
+                machine["username"],
+                str(machine["port"]),
+                "已连接" if machine["connected"] else "未连接"
+            ])
+            self.machine_tree.addTopLevelItem(item)
+
+    # ---------- ROS远程控制 ----------
+
+    def _remote_start_master(self):
+        """远程启动roscore"""
+        machine_name = self._get_selected_machine()
+        if not machine_name:
+            QMessageBox.information(self, "提示", "请先选择一台机器")
+            return
+        
+        result = self.multi_machine.start_ros_master(machine_name)
+        if result["success"]:
+            self.log(f"在 {machine_name} 启动roscore")
+        else:
+            QMessageBox.warning(self, "错误", f"启动roscore失败:\n{result['error']}")
+
+    def _remote_stop_master(self):
+        """远程停止roscore"""
+        machine_name = self._get_selected_machine()
+        if not machine_name:
+            QMessageBox.information(self, "提示", "请先选择一台机器")
+            return
+        
+        result = self.multi_machine.stop_ros_master(machine_name)
+        if result["success"]:
+            self.log(f"在 {machine_name} 停止roscore")
+        else:
+            QMessageBox.warning(self, "错误", f"停止roscore失败:\n{result['error']}")
+
+    def _remote_start_launch(self):
+        """远程启动launch文件"""
+        machine_name = self._get_selected_machine()
+        if not machine_name:
+            QMessageBox.information(self, "提示", "请先选择一台机器")
+            return
+        
+        launch_file, ok = QInputDialog.getText(self, "启动launch文件", 
+                                               "launch文件名(如: turtlebot3_slam):")
+        if not ok or not launch_file:
+            return
+        
+        result = self.multi_machine.start_launch_file_background(machine_name, launch_file)
+        if result["success"]:
+            self.log(f"在 {machine_name} 启动launch: {launch_file}")
+        else:
+            QMessageBox.warning(self, "错误", f"启动launch失败:\n{result['error']}")
+
+    def _remote_stop_launch(self):
+        """远程停止launch"""
+        machine_name = self._get_selected_machine()
+        if not machine_name:
+            QMessageBox.information(self, "提示", "请先选择一台机器")
+            return
+        
+        result = self.multi_machine.stop_launch_process(machine_name)
+        if result["success"]:
+            self.log(f"在 {machine_name} 停止launch")
+        else:
+            QMessageBox.warning(self, "错误", f"停止launch失败:\n{result['error']}")
+
+    def _refresh_remote_nodes(self):
+        """刷新远程节点列表"""
+        machine_name = self._get_selected_machine()
+        if not machine_name:
+            return
+        
+        result = self.multi_machine.get_ros_nodes(machine_name)
+        self.remote_nodes_list.clear()
+        
+        if result.get("error"):
+            self.remote_nodes_list.addItem(f"错误: {result['error']}")
+        else:
+            for node in result["nodes"]:
+                self.remote_nodes_list.addItem(node)
+
+    def _refresh_remote_topics(self):
+        """刷新远程话题列表"""
+        machine_name = self._get_selected_machine()
+        if not machine_name:
+            return
+        
+        result = self.multi_machine.get_ros_topics(machine_name)
+        self.remote_topics_list.clear()
+        
+        if result.get("error"):
+            self.remote_topics_list.addItem(f"错误: {result['error']}")
+        else:
+            for topic in result["topics"]:
+                self.remote_topics_list.addItem(topic)
+
+    def _refresh_robot_status(self):
+        """刷新机器人状态"""
+        machine_name = self._get_selected_machine()
+        if not machine_name:
+            return
+        
+        status = self.multi_machine.get_robot_status(machine_name)
+        
+        self.cpu_label.setText(f"CPU: {status.get('cpu', '--')}")
+        self.mem_label.setText(f"内存: {status.get('memory', '--')}")
+        self.disk_label.setText(f"磁盘: {status.get('disk', '--')}")
+        self.uptime_label.setText(f"运行时间: {status.get('uptime', '--')}")
+
+    def _execute_remote_command(self):
+        """执行远程命令"""
+        machine_name = self._get_selected_machine()
+        if not machine_name:
+            QMessageBox.information(self, "提示", "请先选择一台机器")
+            return
+        
+        command = self.custom_cmd_edit.text().strip()
+        if not command:
+            QMessageBox.information(self, "提示", "请输入要执行的命令")
+            return
+        
+        result = self.multi_machine.execute_remote_command(machine_name, command)
+        
+        self.cmd_output.clear()
+        if result["success"]:
+            self.cmd_output.setPlainText(result.get("output", ""))
+        else:
+            self.cmd_output.setPlainText(f"错误:\n{result.get('error', '未知错误')}")
+
+    # ---------- 插件管理 ----------
+
+    def _discover_plugins(self):
+        """发现插件"""
+        plugins = self.plugin_manager.discover_plugins()
+        self.log(f"发现 {len(plugins)} 个插件")
+
+    def _load_plugin(self):
+        """加载插件"""
+        from PyQt5.QtWidgets import QInputDialog
+        
+        plugins = self.plugin_manager.discover_plugins()
+        if not plugins:
+            QMessageBox.information(self, "提示", "未发现可用插件")
+            return
+        
+        plugin_names = [p["name"] for p in plugins]
+        name, ok = QInputDialog.getItem(self, "加载插件", "选择插件:", plugin_names, 0, False)
+        if not ok:
+            return
+        
+        result = self.plugin_manager.load_plugin(name)
+        if result["success"]:
+            self.log(f"插件已加载: {name}")
+        else:
+            QMessageBox.warning(self, "错误", f"加载插件失败:\n{result['error']}")
+
+    def _refresh_plugins(self):
+        """刷新插件列表"""
+        self.plugin_tree.clear()
+        plugins = self.plugin_manager.get_loaded_plugins()
+        
+        for plugin in plugins:
+            info = plugin.get("info", {})
+            item = QTreeWidgetItem([
+                plugin["name"],
+                "已加载",
+                info.get("description", ""),
+                info.get("version", "")
+            ])
+            self.plugin_tree.addTopLevelItem(item)
+
+    # ---------- 远程文件浏览器 ----------
+
+    def _refresh_remote_files(self):
+        """刷新远程文件列表"""
+        machine_name = self._get_selected_machine()
+        if not machine_name:
+            return
+        
+        current_path = self.remote_path_edit.text().strip()
+        if not current_path:
+            current_path = "~"
+            self.remote_path_edit.setText(current_path)
+        
+        # 获取文件列表
+        cmd = f"ls -la {current_path} 2>/dev/null || echo 'ERROR:目录不存在'"
+        result = self.multi_machine._run_ssh_command(machine_name, cmd)
+        
+        self.remote_dir_tree.clear()
+        
+        if not result["success"]:
+            self.remote_dir_tree.addTopLevelItem(QTreeWidgetItem(["连接失败...", "", "", ""]))
+            return
+        
+        output = result.get("output", "")
+        if output.startswith("ERROR:"):
+            self.remote_dir_tree.addTopLevelItem(QTreeWidgetItem([output, "", "", ""]))
+            return
+        
+        # 解析ls -la输出
+        lines = output.split("\n")
+        for line in lines:
+            if not line.strip() or line.startswith("total"):
+                continue
+            
+            # 解析文件信息
+            parts = line.split(None, 7)
+            if len(parts) < 9:
+                continue
+            
+            permissions = parts[0]
+            size = parts[4]
+            date = f"{parts[5]} {parts[6]}"
+            name = parts[8]
+            
+            # 跳过.和..
+            if name in (".", ".."):
+                continue
+            
+            # 判断类型
+            if permissions.startswith("d"):
+                file_type = "目录"
+                name_display = f"📁 {name}"
+            elif permissions.startswith("l"):
+                file_type = "链接"
+                name_display = f"🔗 {name}"
+            elif name.endswith(".launch"):
+                file_type = "Launch文件"
+                name_display = f"🚀 {name}"
+            elif name.endswith(".py"):
+                file_type = "Python文件"
+                name_display = f"🐍 {name}"
+            elif name.endswith((".yaml", ".yml")):
+                file_type = "YAML文件"
+                name_display = f"📄 {name}"
+            elif name.endswith((".bag",)):
+                file_type = "Bag文件"
+                name_display = f"📦 {name}"
+            else:
+                file_type = "文件"
+                name_display = f"📄 {name}"
+            
+            item = QTreeWidgetItem([name_display, size, file_type, date])
+            item.setData(0, Qt.UserRole, name)  # 存储原始文件名
+            self.remote_dir_tree.addTopLevelItem(item)
+
+    def _remote_go_home(self):
+        """回到主目录"""
+        self.remote_path_edit.setText("~")
+        self._refresh_remote_files()
+
+    def _remote_go_back(self):
+        """返回上级目录"""
+        current_path = self.remote_path_edit.text().strip()
+        if current_path and current_path != "/":
+            parent = os.path.dirname(current_path)
+            if not parent:
+                parent = "/"
+            self.remote_path_edit.setText(parent)
+            self._refresh_remote_files()
+
+    def _remote_goto_path(self):
+        """跳转到指定路径"""
+        self._refresh_remote_files()
+
+    def _remote_file_double_clicked(self, item, column):
+        """双击文件/目录"""
+        if not item:
+            return
+        
+        name = item.data(0, Qt.UserRole)
+        current_path = self.remote_path_edit.text().strip()
+        
+        # 构建完整路径
+        if current_path.endswith("/"):
+            full_path = current_path + name
+        else:
+            full_path = current_path + "/" + name
+        
+        # 判断是否为目录
+        file_type = item.text(2)
+        if file_type == "目录" or file_type == "链接":
+            self.remote_path_edit.setText(full_path)
+            self._refresh_remote_files()
+        elif name.endswith((".launch", ".py")):
+            # 双击launch或py文件，询问是否运行
+            reply = QMessageBox.question(
+                self, "运行文件",
+                f"是否要运行 {name}?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes
+            )
+            if reply == QMessageBox.Yes:
+                self._remote_run_file(full_path)
+
+    def _remote_file_selected(self):
+        """文件选中变化"""
+        current_item = self.remote_dir_tree.currentItem()
+        if current_item:
+            name = current_item.data(0, Qt.UserRole)
+            current_path = self.remote_path_edit.text().strip()
+            if current_path.endswith("/"):
+                full_path = current_path + name
+            else:
+                full_path = current_path + "/" + name
+            self.search_edit.setText(full_path)
+
+    def _remote_run_selected_file(self):
+        """运行选中的文件"""
+        current_item = self.remote_dir_tree.currentItem()
+        if not current_item:
+            QMessageBox.information(self, "提示", "请先选择一个文件")
+            return
+        
+        name = current_item.data(0, Qt.UserRole)
+        current_path = self.remote_path_edit.text().strip()
+        
+        if current_path.endswith("/"):
+            full_path = current_path + name
+        else:
+            full_path = current_path + "/" + name
+        
+        self._remote_run_file(full_path)
+
+    def _remote_run_file(self, file_path):
+        """运行远程文件"""
+        machine_name = self._get_selected_machine()
+        if not machine_name:
+            QMessageBox.information(self, "提示", "请先选择一台机器")
+            return
+        
+        if file_path.endswith(".launch"):
+            # 获取launch包名和文件名
+            # /path/to/package/launch/file.launch -> package file.launch
+            path_parts = file_path.split("/")
+            
+            # 找到launch目录
+            launch_idx = -1
+            for i, part in enumerate(path_parts):
+                if part == "launch":
+                    launch_idx = i
+                    break
+            
+            if launch_idx > 0 and launch_idx < len(path_parts) - 1:
+                package = path_parts[launch_idx - 1]
+                launch_file = path_parts[-1]
+                launch_name = f"{package} {launch_file}"
+            else:
+                launch_name = file_path
+            
+            reply = QMessageBox.question(
+                self, "启动launch文件",
+                f"是否要启动 {launch_name}?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes
+            )
+            if reply == QMessageBox.Yes:
+                result = self.multi_machine.start_launch_file_background(machine_name, launch_name)
+                if result["success"]:
+                    self.log(f"在 {machine_name} 启动launch: {launch_name}")
+                else:
+                    QMessageBox.warning(self, "错误", f"启动launch失败:\n{result['error']}")
+        
+        elif file_path.endswith(".py"):
+            reply = QMessageBox.question(
+                self, "运行Python文件",
+                f"是否要运行 {file_path}?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes
+            )
+            if reply == QMessageBox.Yes:
+                cmd = f"python3 {file_path} &"
+                result = self.multi_machine._run_ssh_command(machine_name, cmd, timeout=5)
+                if result["success"]:
+                    self.log(f"在 {machine_name} 运行: {file_path}")
+                else:
+                    QMessageBox.warning(self, "错误", f"运行Python文件失败:\n{result['error']}")
+
+    def _remote_add_to_launch(self):
+        """添加到launch列表"""
+        current_item = self.remote_dir_tree.currentItem()
+        if not current_item:
+            QMessageBox.information(self, "提示", "请先选择一个文件")
+            return
+        
+        name = current_item.data(0, Qt.UserRole)
+        file_type = current_item.text(2)
+        
+        if not name.endswith(".launch"):
+            QMessageBox.information(self, "提示", "只能添加.launch文件")
+            return
+        
+        current_path = self.remote_path_edit.text().strip()
+        if current_path.endswith("/"):
+            full_path = current_path + name
+        else:
+            full_path = current_path + "/" + name
+        
+        # 获取远程机器信息
+        machine_name = self._get_selected_machine()
+        if not machine_name:
+            return
+        
+        machine = self.multi_machine.get_machine(machine_name)
+        
+        # 添加到表格
+        task = LaunchTask(
+            remote=True,
+            remote_machine=machine_name,
+            remote_hostname=machine.get("hostname"),
+            launch_path=full_path,
+            launch_args=""
+        )
+        
+        self._add_task_row(self.launch_table, task)
+        self.save_config()
+        self.log(f"添加远程launch: {full_path}")
+
+    def _remote_add_to_py(self):
+        """添加到py列表"""
+        current_item = self.remote_dir_tree.currentItem()
+        if not current_item:
+            QMessageBox.information(self, "提示", "请先选择一个文件")
+            return
+        
+        name = current_item.data(0, Qt.UserRole)
+        file_type = current_item.text(2)
+        
+        if not name.endswith(".py"):
+            QMessageBox.information(self, "提示", "只能添加.py文件")
+            return
+        
+        current_path = self.remote_path_edit.text().strip()
+        if current_path.endswith("/"):
+            full_path = current_path + name
+        else:
+            full_path = current_path + "/" + name
+        
+        # 获取远程机器信息
+        machine_name = self._get_selected_machine()
+        if not machine_name:
+            return
+        
+        machine = self.multi_machine.get_machine(machine_name)
+        
+        # 添加到表格
+        task = LaunchTask(
+            remote=True,
+            remote_machine=machine_name,
+            remote_hostname=machine.get("hostname"),
+            py_path=full_path,
+            py_args=""
+        )
+        
+        self._add_task_row(self.py_table, task)
+        self.save_config()
+        self.log(f"添加远程py: {full_path}")
+
+    def _remote_search_files(self):
+        """搜索远程文件"""
+        machine_name = self._get_selected_machine()
+        if not machine_name:
+            return
+        
+        keyword = self.search_edit.text().strip()
+        if not keyword:
+            QMessageBox.information(self, "提示", "请输入搜索关键词")
+            return
+        
+        current_path = self.remote_path_edit.text().strip()
+        
+        # 搜索文件
+        cmd = f"find {current_path} -name '*{keyword}*' -type f 2>/dev/null | head -50"
+        result = self.multi_machine._run_ssh_command(machine_name, cmd, timeout=10)
+        
+        self.remote_dir_tree.clear()
+        
+        if result["success"] and result["output"]:
+            files = result["output"].split("\n")
+            for file_path in files:
+                if not file_path.strip():
+                    continue
+                
+                name = os.path.basename(file_path)
+                dir_path = os.path.dirname(file_path)
+                
+                if name.endswith(".launch"):
+                    file_type = "Launch文件"
+                    name_display = f"🚀 {name}"
+                elif name.endswith(".py"):
+                    file_type = "Python文件"
+                    name_display = f"🐍 {name}"
+                else:
+                    file_type = "文件"
+                    name_display = f"📄 {name}"
+                
+                item = QTreeWidgetItem([name_display, "", file_type, dir_path])
+                item.setData(0, Qt.UserRole, file_path)
+                self.remote_dir_tree.addTopLevelItem(item)
+        else:
+            self.remote_dir_tree.addTopLevelItem(QTreeWidgetItem(["未找到匹配文件", "", "", ""]))
 
 
 def main():

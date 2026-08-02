@@ -1,9 +1,4 @@
+__pycache__/
 build/
 dist/
-__pycache__/
 *.pyc
-.venv/
-.venv_pack/
-*.log
-config.json
-ros-launcher-linux-x64.tar.gz

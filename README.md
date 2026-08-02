@@ -1,51 +1,88 @@
-# ROS GUI启动器
+# ROS GUI 启动器 v3.0
 
-一个用于管理ROS进程的图形界面启动器。
+一个功能强大的ROS一键启动工具，支持launch文件和Python脚本的管理与启动。
 
-## 功能特性
+## 新增功能 (v3.0)
 
-- 一键启动/停止多个ROS进程
-- 实时监控进程状态和资源使用
-- 自动崩溃重启
-- 远程更新支持
-- 多平台打包
+### 核心功能
+- **日志分离系统** - 按任务分文件存储日志，支持日志过滤和搜索
+- **ROS报错翻译** - 自动检测英文报错并翻译成中文
+- **启动场景预设** - 保存/切换常用任务组合（建图、导航等）
+- **内置终端** - 在GUI中直接运行ROS命令
+
+### 易用性提升
+- **文件拖拽支持** - 拖拽文件到窗口自动添加
+- **历史记录** - 快速加载之前使用的文件
+- **自动翻译** - 日志中的错误信息自动翻译成中文
 
 ## 安装
 
-### 从源码安装
+### 方式1：直接运行Python脚本
 
 ```bash
-git clone https://github.com/user/ros_gui_launcher.git
-cd ros_gui_launcher
-pip install -r requirements.txt
-python launcher_gui.py
+pip install PyQt5 psutil
+python3 launcher_gui.py
 ```
 
-### 打包安装
+### 方式2：打包成可执行文件
 
 ```bash
-python build.py
+python3 build.py --clean
 ./dist/ros_gui_launcher
 ```
 
-## 使用说明
+## 使用方法
 
-1. 配置ROS环境路径
-2. 添加launch文件或Python文件
-3. 点击"启动"按钮
+### 基本使用
+1. 设置ROS环境路径（ROS setup和工作空间setup）
+2. 添加launch文件或Python文件到对应列表
+3. 点击"一键启动所有任务"或单独启动
 
-## 开发
+### 场景管理
+1. 点击"场景管理"标签页
+2. 点击"创建场景"保存当前配置
+3. 双击场景可快速切换
 
-### 运行测试
+### 内置终端
+1. 点击"内置终端"标签页
+2. 输入ROS命令（如 `rostopic list`）
+3. 支持常用命令快捷按钮
 
-```bash
-python -m pytest tests/
+### 日志查看
+1. 点击"运行日志"标签页
+2. 支持按任务过滤日志
+3. 支持日志搜索
+
+### 翻译工具
+1. 点击"翻译工具"标签页
+2. 输入英文错误信息
+3. 获取中文翻译
+
+## 快捷键
+
+| 快捷键 | 功能 |
+|--------|------|
+| F5 | 一键启动所有任务 |
+| F6 | 停止所有任务 |
+| F7 | 启动选中任务 |
+| F8 | 停止选中任务 |
+| ↑/↓ | 终端命令历史 |
+
+## 文件结构
+
 ```
-
-### 打包
-
-```bash
-python build.py --clean
+ros_gui_launcher/
+├── launcher_gui.py      # 主程序
+├── security.py          # 安全模块
+├── config_manager.py    # 配置管理
+├── monitor.py           # 系统监控
+├── updater.py           # 远程更新
+├── log_manager.py       # 日志管理
+├── ros_translator.py    # ROS报错翻译
+├── scene_manager.py     # 场景管理
+├── terminal_widget.py   # 内置终端
+├── build.py             # 打包脚本
+└── update_config.json   # 更新配置
 ```
 
 ## 许可证

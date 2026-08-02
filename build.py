@@ -1,6 +1,7 @@
 import subprocess
 import sys
 import os
+import shutil
 
 def build_application(clean=False, debug=False, onefile=True):
     """构建应用程序"""
@@ -21,6 +22,17 @@ def build_application(clean=False, debug=False, onefile=True):
     if result.returncode == 0:
         print("打包成功！")
         print("输出文件：dist/ros_gui_launcher")
+        
+        # 复制配置文件到dist目录
+        dist_dir = os.path.join(os.path.dirname(__file__), "dist")
+        config_files = ["update_config.json", "style.qss"]
+        
+        for config_file in config_files:
+            src = os.path.join(os.path.dirname(__file__), config_file)
+            dst = os.path.join(dist_dir, config_file)
+            if os.path.exists(src):
+                shutil.copy2(src, dst)
+                print(f"已复制: {config_file}")
     else:
         print("打包失败：")
         print(result.stderr)
