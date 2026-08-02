@@ -30,6 +30,7 @@ from simulation_controller import SimulationController
 from log_analyzer import LogAnalyzer
 from tf_monitor import TFMonitor
 from data_visualizer import DataVisualizer
+from chart_widget import TrendChartWidget
 from multi_machine import MultiMachineController
 from plugin_manager import PluginManager
 from functools import lru_cache
@@ -746,22 +747,27 @@ class MainWindow(QMainWindow):
         monitor_layout = QVBoxLayout(monitor_widget)
         
         # 系统资源监控
-        sys_group = QGroupBox("系统资源")
-        sys_layout = QHBoxLayout(sys_group)
+        sys_group = QGroupBox("系统资源 (实时)")
+        sys_layout = QVBoxLayout(sys_group)
         
+        # 实时趋势图
+        self.trend_chart = TrendChartWidget()
+        self.trend_chart.add_series("cpu", color="#8be9fd", label="CPU")
+        self.trend_chart.add_series("memory", color="#bd93f9", label="内存")
+        sys_layout.addWidget(self.trend_chart)
+        
+        # 当前值显示
+        values_layout = QHBoxLayout()
         self.cpu_label = QLabel("CPU: 0%")
-        self.cpu_bar = QProgressBar()
-        self.cpu_bar.setRange(0, 100)
-        self.cpu_bar.setValue(0)
-        sys_layout.addWidget(self.cpu_label)
-        sys_layout.addWidget(self.cpu_bar)
-        
+        self.cpu_label.setStyleSheet("color: #8be9fd; font-size: 14px; font-weight: bold;")
+        values_layout.addWidget(self.cpu_label)
+        values_layout.addStretch()
         self.mem_label = QLabel("内存: 0%")
-        self.mem_bar = QProgressBar()
-        self.mem_bar.setRange(0, 100)
-        self.mem_bar.setValue(0)
-        sys_layout.addWidget(self.mem_label)
-        sys_layout.addWidget(self.mem_bar)
+        self.mem_label.setStyleSheet("color: #bd93f9; font-size: 14px; font-weight: bold;")
+        values_layout.addWidget(self.mem_label)
+        values_layout.addStretch()
+        values_layout.addWidget(QLabel(""))
+        sys_layout.addLayout(values_layout)
         
         monitor_layout.addWidget(sys_group)
         
@@ -1968,12 +1974,14 @@ class MainWindow(QMainWindow):
             # 获取CPU使用率
             cpu_percent = psutil.cpu_percent(interval=0.1)
             self.cpu_label.setText(f"CPU: {cpu_percent:.1f}%")
-            self.cpu_bar.setValue(int(cpu_percent))
+            if hasattr(self, 'trend_chart'):
+                self.trend_chart.add_data_point("cpu", cpu_percent)
             
             # 获取内存使用率
             mem = psutil.virtual_memory()
             self.mem_label.setText(f"内存: {mem.percent:.1f}%")
-            self.mem_bar.setValue(int(mem.percent))
+            if hasattr(self, 'trend_chart'):
+                self.trend_chart.add_data_point("memory", mem.percent)
             
             # 获取运行中的进程
             running_tasks = []
