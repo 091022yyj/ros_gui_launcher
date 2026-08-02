@@ -3290,12 +3290,10 @@ class MainWindow(QMainWindow):
         machine = self.multi_machine.get_machine(machine_name)
         
         # 添加到表格
-        task = LaunchTask(
-            remote=True,
-            remote_machine=machine_name,
-            remote_hostname=machine.get("hostname"),
-            launch_path=full_path,
-            launch_args=""
+        task = ProcessRow(
+            path=full_path,
+            kind="launch",
+            args=f"--remote {machine_name}",
         )
         
         self._add_task_row(self.launch_table, task)
@@ -3330,12 +3328,10 @@ class MainWindow(QMainWindow):
         machine = self.multi_machine.get_machine(machine_name)
         
         # 添加到表格
-        task = LaunchTask(
-            remote=True,
-            remote_machine=machine_name,
-            remote_hostname=machine.get("hostname"),
-            py_path=full_path,
-            py_args=""
+        task = ProcessRow(
+            path=full_path,
+            kind="py",
+            args=f"--remote {machine_name}",
         )
         
         self._add_task_row(self.py_table, task)
