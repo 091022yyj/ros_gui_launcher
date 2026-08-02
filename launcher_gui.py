@@ -1138,17 +1138,17 @@ class MainWindow(QMainWindow):
         # 机器人状态
         status_layout = QHBoxLayout()
         
-        self.cpu_label = QLabel("CPU: --")
-        status_layout.addWidget(self.cpu_label)
+        self.remote_cpu_label = QLabel("CPU: --")
+        status_layout.addWidget(self.remote_cpu_label)
         
-        self.mem_label = QLabel("内存: --")
-        status_layout.addWidget(self.mem_label)
+        self.remote_mem_label = QLabel("内存: --")
+        status_layout.addWidget(self.remote_mem_label)
         
-        self.disk_label = QLabel("磁盘: --")
-        status_layout.addWidget(self.disk_label)
+        self.remote_disk_label = QLabel("磁盘: --")
+        status_layout.addWidget(self.remote_disk_label)
         
-        self.uptime_label = QLabel("运行时间: --")
-        status_layout.addWidget(self.uptime_label)
+        self.remote_uptime_label = QLabel("运行时间: --")
+        status_layout.addWidget(self.remote_uptime_label)
         
         refresh_status_btn = QPushButton("刷新状态")
         refresh_status_btn.clicked.connect(self._refresh_robot_status)
@@ -2988,10 +2988,10 @@ class MainWindow(QMainWindow):
         
         status = self.multi_machine.get_robot_status(machine_name)
         
-        self.cpu_label.setText(f"CPU: {status.get('cpu', '--')}")
-        self.mem_label.setText(f"内存: {status.get('memory', '--')}")
-        self.disk_label.setText(f"磁盘: {status.get('disk', '--')}")
-        self.uptime_label.setText(f"运行时间: {status.get('uptime', '--')}")
+        self.remote_cpu_label.setText(f"CPU: {status.get('cpu', '--')}")
+        self.remote_mem_label.setText(f"内存: {status.get('memory', '--')}")
+        self.remote_disk_label.setText(f"磁盘: {status.get('disk', '--')}")
+        self.remote_uptime_label.setText(f"运行时间: {status.get('uptime', '--')}")
 
     def _execute_remote_command(self):
         """执行远程命令"""
