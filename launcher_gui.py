@@ -33,6 +33,62 @@ from data_visualizer import DataVisualizer
 from chart_widget import TrendChartWidget
 from multi_machine import MultiMachineController
 from plugin_manager import PluginManager
+
+# ---- 可选功能模块(文件缺失时自动跳过,不影响主程序) ----
+try:
+    from robot_control import RobotControlWidget
+except Exception as e:
+    print(f"加载robot_control失败: {e}")
+    RobotControlWidget = None
+
+try:
+    from navigation_panel import NavigationWidget
+except Exception as e:
+    print(f"加载navigation_panel失败: {e}")
+    NavigationWidget = None
+
+try:
+    from sensor_panel import SensorPanelWidget
+except Exception as e:
+    print(f"加载sensor_panel失败: {e}")
+    SensorPanelWidget = None
+
+try:
+    from camera_view import CameraViewWidget
+except Exception as e:
+    print(f"加载camera_view失败: {e}")
+    CameraViewWidget = None
+
+try:
+    from topic_table import TopicTableWidget
+except Exception as e:
+    print(f"加载topic_table失败: {e}")
+    TopicTableWidget = None
+
+try:
+    from bag_manager import BagManagerWidget
+except Exception as e:
+    print(f"加载bag_manager失败: {e}")
+    BagManagerWidget = None
+
+try:
+    from alarm_system import AlarmSystemWidget
+except Exception as e:
+    print(f"加载alarm_system失败: {e}")
+    AlarmSystemWidget = None
+
+try:
+    from serial_debug import SerialDebugWidget
+except Exception as e:
+    print(f"加载serial_debug失败: {e}")
+    SerialDebugWidget = None
+
+try:
+    from web_remote import WebRemoteWidget
+except Exception as e:
+    print(f"加载web_remote失败: {e}")
+    WebRemoteWidget = None
+
 from functools import lru_cache
 from PyQt5.QtCore import Qt, QProcess, QTimer
 from PyQt5.QtGui import QColor, QKeySequence
@@ -54,7 +110,7 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
-VERSION = "3.4.2"
+VERSION = "3.5.0"
 
 DEFAULT_CONFIG = {
     "ros_setup": "/opt/ros/noetic/setup.bash",
@@ -1405,6 +1461,83 @@ class MainWindow(QMainWindow):
         plugin_layout.addWidget(self.plugin_tree)
         
         add_page(plugin_widget, "🧩 插件管理")
+        
+        # ===== 新增功能模块 =====
+        ros_env = (
+            self.ros_setup_edit.text().strip(),
+            self.ws_setup_edit.text().strip()
+        )
+        
+        try:
+            from robot_control import RobotControlWidget
+            self.robot_control = RobotControlWidget(*ros_env)
+            self.robot_control.set_ros_env(*ros_env)
+            add_page(self.robot_control, "🎮 遥控面板")
+        except Exception as e:
+            self.log(f"加载遥控面板失败: {e}")
+        
+        try:
+            from navigation_panel import NavigationWidget
+            self.navigation_panel = NavigationWidget(*ros_env)
+            add_page(self.navigation_panel, "🧭 一键导航")
+        except Exception as e:
+            self.log(f"加载一键导航失败: {e}")
+        
+        try:
+            from sensor_panel import SensorPanelWidget
+            self.sensor_panel = SensorPanelWidget(*ros_env)
+            add_page(self.sensor_panel, "📡 传感器面板")
+        except Exception as e:
+            self.log(f"加载传感器面板失败: {e}")
+        
+        try:
+            from camera_view import CameraViewWidget
+            self.camera_view = CameraViewWidget(*ros_env)
+            add_page(self.camera_view, "📷 摄像头画面")
+        except Exception as e:
+            self.log(f"加载摄像头画面失败: {e}")
+        
+        try:
+            from topic_table import TopicTableWidget
+            self.topic_table = TopicTableWidget(*ros_env)
+            add_page(self.topic_table, "📊 话题数据表")
+        except Exception as e:
+            self.log(f"加载话题数据表失败: {e}")
+        
+        try:
+            from bag_manager import BagManagerWidget
+            self.bag_manager = BagManagerWidget(*ros_env)
+            add_page(self.bag_manager, "📼 rosbag管理")
+        except Exception as e:
+            self.log(f"加载rosbag管理失败: {e}")
+        
+        try:
+            from alarm_system import AlarmSystemWidget
+            self.alarm_system = AlarmSystemWidget(*ros_env)
+            # 关联监控的launch/py任务
+            monitored = []
+            for kind in ("launch", "py"):
+                for r, task, item in self._rows_of(self._table_of(kind)):
+                    if task.path:
+                        monitored.append(task.path)
+            self.alarm_system.set_monitored_nodes(monitored)
+            add_page(self.alarm_system, "🔔 报警系统")
+        except Exception as e:
+            self.log(f"加载报警系统失败: {e}")
+        
+        try:
+            from serial_debug import SerialDebugWidget
+            self.serial_debug = SerialDebugWidget()
+            add_page(self.serial_debug, "🔌 串口调试")
+        except Exception as e:
+            self.log(f"加载串口调试失败: {e}")
+        
+        try:
+            from web_remote import WebRemoteWidget
+            self.web_remote = WebRemoteWidget(*ros_env)
+            add_page(self.web_remote, "🌐 Web远程")
+        except Exception as e:
+            self.log(f"加载Web远程失败: {e}")
         
         # 导航栏点击切换页面
         self.nav_list.currentRowChanged.connect(self.content_stack.setCurrentIndex)
