@@ -43,6 +43,7 @@ from PyQt5.QtWidgets import (
     QMessageBox, QHeaderView, QSpinBox, QTabWidget, QProgressBar,
     QListWidget, QListWidgetItem, QDockWidget, QSplitter, QTreeWidget,
     QTreeWidgetItem, QHeaderView as QTreeHeaderView, QComboBox, QShortcut,
+    QStackedWidget,
 )
 
 # PyInstaller 打包后 __file__ 指向临时解压目录,
@@ -402,6 +403,32 @@ QDockWidget::title {
     padding: 6px;
     border: 1px solid #44475a;
 }
+/* ---- 左侧导航栏 ---- */
+QListWidget#navList {
+    background-color: #21222c;
+    border: none;
+    border-right: 1px solid #44475a;
+    border-radius: 0;
+    padding: 6px 0;
+    outline: none;
+}
+QListWidget#navList::item {
+    padding: 10px 16px;
+    border-radius: 8px;
+    margin: 2px 6px;
+    color: #a0a2b8;
+    font-size: 13px;
+}
+QListWidget#navList::item:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: #f8f8f2;
+}
+QListWidget#navList::item:selected {
+    background-color: #44475a;
+    color: #8be9fd;
+    font-weight: bold;
+    border-left: 3px solid #8be9fd;
+}
 """
 
 
@@ -698,7 +725,20 @@ class MainWindow(QMainWindow):
         self.main_splitter.setStretchFactor(1, 3)
         self.main_splitter.setSizes([450, 650])
 
-        self._main_layout.addWidget(self.main_splitter)
+        # ---- 左侧导航栏 + 右侧内容区 ----
+        self.nav_list = QListWidget()
+        self.nav_list.setFixedWidth(190)
+        self.nav_list.setObjectName("navList")
+        self.content_stack = QStackedWidget()
+
+        self._nav_container = QWidget()
+        nav_layout = QHBoxLayout(self._nav_container)
+        nav_layout.setContentsMargins(0, 0, 0, 0)
+        nav_layout.setSpacing(4)
+        nav_layout.addWidget(self.nav_list)
+        nav_layout.addWidget(self.content_stack, 1)
+
+        self._main_layout.addWidget(self._nav_container)
 
         # 恢复已保存的文件列表
         self._loading = True
@@ -727,10 +767,20 @@ class MainWindow(QMainWindow):
         # 延迟初始化日志视图
         self._init_log_file()
         
-        # 创建标签页：日志、监控和历史
-        self.tab_widget = QTabWidget()
+        # 左侧导航 + 右侧内容区(替代原QTabWidget)
+        self.tab_widget = self.content_stack
+        self._nav_index = {}
+        self._nav_pages = []
         
-        # 日志标签页
+        def add_page(widget, name):
+            """添加页面到内容区,并在导航栏显示"""
+            self.content_stack.addWidget(widget)
+            self.nav_list.addItem(name)
+            self._nav_pages.append(widget)
+        
+        self._add_page = add_page
+        
+        # 运行日志页(直接放到main_splitter下部,不占导航)
         log_widget = QWidget()
         log_layout = QVBoxLayout(log_widget)
         self.log_view = QPlainTextEdit()
@@ -740,9 +790,15 @@ class MainWindow(QMainWindow):
         clear_btn = QPushButton("清空日志")
         clear_btn.clicked.connect(self.log_view.clear)
         log_layout.addWidget(clear_btn)
-        self.tab_widget.addTab(log_widget, "运行日志")
         
-        # 监控标签页
+        # 任务管理页 = main_splitter(launch/py + 日志)
+        idx = self.main_splitter.indexOf(self._log_box_placeholder)
+        if idx >= 0:
+            self.main_splitter.replaceWidget(idx, log_widget)
+            self._log_box_placeholder.deleteLater()
+        add_page(self.main_splitter, "📋 任务管理")
+        
+        # 监控页
         monitor_widget = QWidget()
         monitor_layout = QVBoxLayout(monitor_widget)
         
@@ -785,7 +841,7 @@ class MainWindow(QMainWindow):
         refresh_btn.clicked.connect(self.refresh_monitor)
         monitor_layout.addWidget(refresh_btn)
         
-        self.tab_widget.addTab(monitor_widget, "系统监控")
+        add_page(monitor_widget, "📊 系统监控")
         
         # 历史记录标签页
         history_widget = QWidget()
@@ -805,14 +861,14 @@ class MainWindow(QMainWindow):
         history_btn_layout.addStretch()
         history_layout.addLayout(history_btn_layout)
         
-        self.tab_widget.addTab(history_widget, "历史记录")
+        add_page(history_widget, "🕘 历史记录")
         
         # 内置终端标签页
         self.terminal_widget = TerminalWidget(
             ros_setup=self.config.get("ros_setup", ""),
             ws_setup=self.config.get("ws_setup", "")
         )
-        self.tab_widget.addTab(self.terminal_widget, "内置终端")
+        add_page(self.terminal_widget, "💻 内置终端")
         
         # 场景管理标签页
         scene_widget = QWidget()
@@ -846,7 +902,7 @@ class MainWindow(QMainWindow):
         scene_action_layout.addStretch()
         scene_layout.addLayout(scene_action_layout)
         
-        self.tab_widget.addTab(scene_widget, "场景管理")
+        add_page(scene_widget, "🎬 场景管理")
         
         # 翻译工具标签页
         translator_widget = QWidget()
@@ -885,7 +941,7 @@ class MainWindow(QMainWindow):
         
         translator_layout.addStretch()
         
-        self.tab_widget.addTab(translator_widget, "翻译工具")
+        add_page(translator_widget, "🌐 翻译工具")
         
         # ROS监控标签页
         ros_monitor_widget = QWidget()
@@ -965,7 +1021,7 @@ class MainWindow(QMainWindow):
         
         ros_monitor_layout.addWidget(network_group)
         
-        self.tab_widget.addTab(ros_monitor_widget, "ROS监控")
+        add_page(ros_monitor_widget, "🤖 ROS监控")
         
         # 磁盘监控标签页
         disk_widget = QWidget()
@@ -1006,7 +1062,7 @@ class MainWindow(QMainWindow):
         
         disk_layout.addStretch()
         
-        self.tab_widget.addTab(disk_widget, "磁盘监控")
+        add_page(disk_widget, "💾 磁盘监控")
         
         # TF可视化标签页
         try:
@@ -1015,7 +1071,7 @@ class MainWindow(QMainWindow):
                 ros_setup=self.config.get("ros_setup", ""),
                 ws_setup=self.config.get("ws_setup", "")
             )
-            self.tab_widget.addTab(self.tf_visualizer, "TF可视化")
+            add_page(self.tf_visualizer, "🧭 TF可视化")
         except Exception as e:
             print(f"加载TF可视化组件失败: {e}")
         
@@ -1040,7 +1096,7 @@ class MainWindow(QMainWindow):
         self.schedule_tree.setAlternatingRowColors(True)
         scheduler_layout.addWidget(self.schedule_tree)
         
-        self.tab_widget.addTab(scheduler_widget, "任务调度")
+        add_page(scheduler_widget, "⏰ 任务调度")
         
         # 仿真控制标签页
         sim_widget = QWidget()
@@ -1082,7 +1138,7 @@ class MainWindow(QMainWindow):
         sim_layout.addWidget(model_group)
         sim_layout.addStretch()
         
-        self.tab_widget.addTab(sim_widget, "仿真控制")
+        add_page(sim_widget, "🎮 仿真控制")
         
         # 日志分析标签页
         analyzer_widget = QWidget()
@@ -1108,7 +1164,7 @@ class MainWindow(QMainWindow):
         self.analysis_result.setReadOnly(True)
         analyzer_layout.addWidget(self.analysis_result)
         
-        self.tab_widget.addTab(analyzer_widget, "日志分析")
+        add_page(analyzer_widget, "🔍 日志分析")
         
         # 多机协同标签页
         multi_machine_widget = QWidget()
@@ -1321,7 +1377,7 @@ class MainWindow(QMainWindow):
         
         multi_machine_layout.addWidget(ros_remote_group)
         
-        self.tab_widget.addTab(multi_machine_widget, "多机协同")
+        add_page(multi_machine_widget, "🌍 多机协同")
         
         # 插件管理标签页
         plugin_widget = QWidget()
@@ -1348,14 +1404,11 @@ class MainWindow(QMainWindow):
         self.plugin_tree.setAlternatingRowColors(True)
         plugin_layout.addWidget(self.plugin_tree)
         
-        self.tab_widget.addTab(plugin_widget, "插件管理")
+        add_page(plugin_widget, "🧩 插件管理")
         
-        # 替换占位符
-        idx = self.main_splitter.indexOf(self._log_box_placeholder)
-        if idx >= 0:
-            self.main_splitter.replaceWidget(idx, self.tab_widget)
-            self._log_box_placeholder.deleteLater()
-            self.tab_widget.setMinimumHeight(200)
+        # 导航栏点击切换页面
+        self.nav_list.currentRowChanged.connect(self.content_stack.setCurrentIndex)
+        self.nav_list.setCurrentRow(0)
         
         # 加载历史记录
         self._load_history()
