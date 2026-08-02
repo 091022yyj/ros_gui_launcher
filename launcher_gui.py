@@ -110,7 +110,7 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
-VERSION = "3.6.0"
+VERSION = "3.6.1"
 
 DEFAULT_CONFIG = {
     "ros_setup": "/opt/ros/noetic/setup.bash",
@@ -1717,7 +1717,12 @@ class MainWindow(QMainWindow):
         start_all.clicked.connect(lambda: self.start_all(kind))
         stop_all = QPushButton("全部停止")
         stop_all.clicked.connect(lambda: self.stop_all(kind))
-        for b in (add_btn, start_btn, stop_btn, remove_btn, start_all, stop_all):
+        up_btn = QPushButton("↑ 上移")
+        up_btn.clicked.connect(lambda: self.move_task(kind, -1))
+        down_btn = QPushButton("↓ 下移")
+        down_btn.clicked.connect(lambda: self.move_task(kind, 1))
+        for b in (add_btn, start_btn, stop_btn, remove_btn, start_all, stop_all,
+                  up_btn, down_btn):
             btns.addWidget(b)
         btns.addStretch(1)
         btns.addWidget(QLabel("顺序延时(秒):"))
@@ -1819,6 +1824,56 @@ class MainWindow(QMainWindow):
 
     def _table_of(self, kind):
         return self.launch_table if kind == "launch" else self.py_table
+
+    def move_task(self, kind, direction):
+        """上移/下移选中任务,调整启动顺序
+        direction: -1上移, 1下移
+        """
+        table = self._table_of(kind)
+        rows = sorted({i.row() for i in table.selectedIndexes()})
+        if not rows:
+            QMessageBox.information(self, "提示", "请先选择要移动的任务")
+            return
+        
+        # 逐行移动(选择多行时整体移动)
+        if direction == -1:  # 上移
+            for r in rows:
+                if r == 0:
+                    continue
+                self._swap_rows(table, r, r - 1)
+        else:  # 下移
+            for r in reversed(rows):
+                if r >= table.rowCount() - 1:
+                    continue
+                self._swap_rows(table, r, r + 1)
+        
+        self.save_config()
+        # 保持选中
+        table.clearSelection()
+        for r in rows:
+            item = table.item(r, COL_PATH)
+            if item:
+                item.setSelected(True)
+
+    def _swap_rows(self, table, r1, r2):
+        """交换表格两行(所有列+操作widget)"""
+        if r1 < 0 or r2 < 0 or r1 >= table.rowCount() or r2 >= table.rowCount():
+            return
+        
+        for col in range(6):
+            item1 = table.takeItem(r1, col)
+            item2 = table.takeItem(r2, col)
+            if item1:
+                table.setItem(r2, col, item1)
+            if item2:
+                table.setItem(r1, col, item2)
+        
+        # 交换操作列的widget
+        w1 = table.cellWidget(r1, COL_OPS)
+        w2 = table.cellWidget(r2, COL_OPS)
+        if w1 and w2:
+            table.setCellWidget(r1, COL_OPS, w2)
+            table.setCellWidget(r2, COL_OPS, w1)
 
     def _delay_ms(self, table):
         spin = table.property("delay_spin")

@@ -2,15 +2,15 @@
 # -*- coding: utf-8 -*-
 """
 摄像头画面模块
+- 自动检测有发布者的图像话题(Gazebo/真实相机通用)
 - 显示ROS摄像头话题图像
-- 支持切换话题
-- 截图保存
+- 支持切换话题、截图保存
 """
 import os
 import subprocess
 import tempfile
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QPixmap, QImage
+from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
                              QLabel, QPushButton, QComboBox, QFileDialog,
                              QMessageBox)
@@ -23,19 +23,21 @@ class CameraViewWidget(QWidget):
         super().__init__(parent)
         self.ros_setup = ros_setup
         self.ws_setup = ws_setup
-        self.current_topic = "/camera/image_raw"
+        self.current_topic = ""
         self._build_source_cmd()
         self._init_ui()
         self.refresh_timer = QTimer()
         self.refresh_timer.timeout.connect(self._grab_frame)
-        self.refresh_timer.start(600)  # 降低抓帧频率
+        self.refresh_timer.start(800)
+        # 启动后自动检测话题
+        QTimer.singleShot(1000, self._auto_detect)
 
     def pause_timers(self):
         self.refresh_timer.stop()
 
     def resume_timers(self):
         if not self.preview_btn.isChecked():
-            self.refresh_timer.start(600)
+            self.refresh_timer.start(800)
 
     def _build_source_cmd(self):
         parts = []
@@ -49,12 +51,6 @@ class CameraViewWidget(QWidget):
         self.ros_setup = ros_setup
         self.ws_setup = ws_setup
         self._build_source_cmd()
-
-
-    def _run_bg(self, fn, on_done=None):
-        """后台线程执行,完成后主线程回调(线程安全)"""
-        from async_helper import run_async
-        run_async(fn, on_done)
 
     def _run_cmd(self, cmd, timeout=10):
         full = f"{self.source_cmd} && {cmd}" if self.source_cmd else cmd
@@ -70,14 +66,14 @@ class CameraViewWidget(QWidget):
 
         # 工具栏
         toolbar = QHBoxLayout()
+        toolbar.addWidget(QLabel("图像话题:"))
         self.topic_combo = QComboBox()
         self.topic_combo.setEditable(True)
-        self.topic_combo.setCurrentText(self.current_topic)
-        toolbar.addWidget(QLabel("图像话题:"))
+        self.topic_combo.setPlaceholderText("选择或输入话题...")
         toolbar.addWidget(self.topic_combo, 1)
-        scan_btn = QPushButton("扫描话题")
-        scan_btn.clicked.connect(self._scan_topics)
-        toolbar.addWidget(scan_btn)
+        detect_btn = QPushButton("🔍 自动检测")
+        detect_btn.clicked.connect(self._auto_detect)
+        toolbar.addWidget(detect_btn)
         connect_btn = QPushButton("连接")
         connect_btn.clicked.connect(self._connect_topic)
         toolbar.addWidget(connect_btn)
@@ -91,7 +87,7 @@ class CameraViewWidget(QWidget):
             background-color: #1e1f29; border: 1px solid #44475a; border-radius: 8px;
             color: #6272a4; font-size: 14px;
         """)
-        self.image_label.setText("未连接摄像头\n\n请设置图像话题并点击连接")
+        self.image_label.setText("未连接摄像头\n\n点击[自动检测]查找图像话题")
         layout.addWidget(self.image_label, 1)
 
         # 底部按钮
@@ -109,22 +105,46 @@ class CameraViewWidget(QWidget):
         btn_row.addWidget(self.status_label)
         layout.addLayout(btn_row)
 
-    def _scan_topics(self):
-        """扫描图像话题"""
-        stdout, stderr, code = self._run_cmd(
-            "rostopic list 2>/dev/null | grep -iE 'image|camera|video' | head -20",
-            timeout=8)
+    def _auto_detect(self):
+        """自动检测有发布者的图像话题(一次命令完成)"""
+        self.status_label.setText("检测中...")
+        self.image_label.setText("正在检测图像话题...")
+        # 列出所有图像相关话题, 检查发布者
+        cmd = (
+            "for t in $(rostopic list 2>/dev/null | grep -iE 'image|camera|video|usb_cam' "
+            "| grep -vE '/camera_info|parameter|_updates|theora|compressedDepth|depth'); do "
+            "pub=$(rostopic info $t 2>/dev/null | grep -A1 'Publishers:' | grep -c '\\*'); "
+            "[ \"$pub\" -gt 0 ] && echo $t; done"
+        )
+        stdout, _, code = self._run_cmd(cmd, timeout=12)
         if code == 0 and stdout:
-            topics = [t for t in stdout.split("\n") if t.strip()]
-            self.topic_combo.clear()
-            self.topic_combo.addItems(topics)
-            self.status_label.setText(f"发现 {len(topics)} 个图像话题")
-        else:
-            self.status_label.setText("未发现图像话题")
+            topics = [t.strip() for t in stdout.split("\n") if t.strip()]
+            if topics:
+                self.topic_combo.clear()
+                self.topic_combo.addItems(topics)
+                # 优先选择常见话题
+                preferred = ["/camera/image_raw", "/kinect2/hd/image_color_rect",
+                             "/usb_cam/image_raw", "/cv_camera/image_raw"]
+                sel = topics[0]
+                for p in preferred:
+                    if p in topics:
+                        sel = p
+                        break
+                self.topic_combo.setCurrentText(sel)
+                self.current_topic = sel
+                self.status_label.setText(f"检测到 {len(topics)} 个话题, 已连接: {sel}")
+                self._grab_frame()
+                return
+        self.status_label.setText("未检测到图像话题(请确认Gazebo/相机驱动已启动)")
+        self.image_label.setText("未检测到活跃图像话题\n\n请确认:\n1. Gazebo或相机驱动已启动\n2. 有节点在发布图像话题")
 
     def _connect_topic(self):
         self.current_topic = self.topic_combo.currentText().strip()
-        self.status_label.setText(f"连接: {self.current_topic}")
+        if self.current_topic:
+            self.status_label.setText(f"连接: {self.current_topic}")
+            self._grab_frame()
+        else:
+            QMessageBox.information(self, "提示", "请输入话题名称")
 
     def _toggle_preview(self):
         if self.preview_btn.isChecked():
@@ -136,23 +156,32 @@ class CameraViewWidget(QWidget):
 
     def _grab_frame(self):
         """抓取一帧图像"""
+        if not self.current_topic:
+            return
         tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
+        tmp_name = tmp.name
         tmp.close()
         stdout, stderr, code = self._run_cmd(
-            f"rosrun image_view extract_images _sec_per_frame:=100 _filename_format:='{tmp.name}' "
-            f"image:={self.current_topic} __name:=gui_camera_grab 2>/dev/null & "
-            f"sleep 1.5; pkill -f gui_camera_grab; ls {tmp.name} 2>/dev/null",
+            f"rm -f '{tmp_name}'; "
+            f"rosrun image_view extract_images _sec_per_frame:=100 "
+            f"_filename_format:='{tmp_name}' image:={self.current_topic} "
+            f"__name:=gui_cam_grab 2>/dev/null & "
+            f"sleep 2; pkill -f gui_cam_grab 2>/dev/null; "
+            f"ls '{tmp_name}' 2>/dev/null",
             timeout=8
         )
-        # 检查文件是否存在
-        if os.path.exists(tmp.name):
-            pixmap = QPixmap(tmp.name)
+        if os.path.exists(tmp_name):
+            pixmap = QPixmap(tmp_name)
             if not pixmap.isNull():
                 scaled = pixmap.scaled(self.image_label.size(),
                                        Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 self.image_label.setPixmap(scaled)
                 self.status_label.setText(f"{self.current_topic} | {pixmap.width()}x{pixmap.height()}")
-            os.remove(tmp.name)
+            else:
+                self.status_label.setText(f"{self.current_topic} | 图像无效")
+            os.remove(tmp_name)
+        else:
+            self.status_label.setText(f"{self.current_topic} | 无数据(检查发布者)")
 
     def _save_screenshot(self):
         path, _ = QFileDialog.getSaveFileName(self, "保存截图",
