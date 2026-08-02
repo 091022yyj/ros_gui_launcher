@@ -16,16 +16,25 @@ import shlex
 import platform
 
 from security import SecurityManager
+from config_manager import ConfigManager
+from monitor import ProcessMonitor
+from updater import Updater
 from functools import lru_cache
 from PyQt5.QtCore import Qt, QProcess, QTimer
+from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QLineEdit, QFileDialog, QGroupBox,
     QPlainTextEdit, QTableWidget, QTableWidgetItem, QAbstractItemView,
-    QMessageBox, QHeaderView, QSpinBox,
+    QMessageBox, QHeaderView, QSpinBox, QTabWidget, QProgressBar,
 )
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# PyInstaller 打包后 __file__ 指向临时解压目录,
+# 配置和日志要放在可执行文件旁边,否则每次运行都会丢失
+if getattr(sys, "frozen", False):
+    BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
 VERSION = "2.0.0"
@@ -42,6 +51,143 @@ MAX_RESTARTS = 3  # 崩溃自动重启的最大次数
 
 # 表格列
 COL_STATUS, COL_PATH, COL_ARGS, COL_RESTART, COL_AUTOSTART, COL_OPS = range(6)
+
+APP_QSS = """
+* {
+    font-family: "Noto Sans CJK SC", "WenQuanYi Micro Hei", "DejaVu Sans", sans-serif;
+    font-size: 13px;
+}
+QMainWindow, QWidget {
+    background-color: #23272e;
+    color: #d7dae0;
+}
+QGroupBox {
+    background-color: #2b3038;
+    border: 1px solid #3a4048;
+    border-radius: 8px;
+    margin-top: 14px;
+    padding-top: 8px;
+    font-weight: bold;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 12px;
+    padding: 0 6px;
+    color: #8ab4f8;
+}
+QPushButton {
+    background-color: #3a4048;
+    border: 1px solid #4a5158;
+    border-radius: 6px;
+    padding: 6px 14px;
+    color: #e8eaed;
+}
+QPushButton:hover { background-color: #4a5158; }
+QPushButton:pressed { background-color: #2f353c; }
+QPushButton#btnStart {
+    background-color: #2e7d32;
+    border-color: #388e3c;
+    font-weight: bold;
+}
+QPushButton#btnStart:hover { background-color: #388e3c; }
+QPushButton#btnStop {
+    background-color: #b3372f;
+    border-color: #d24a41;
+    font-weight: bold;
+}
+QPushButton#btnStop:hover { background-color: #d24a41; }
+QPushButton#btnGlobalStart {
+    background-color: #2e7d32;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: bold;
+    padding: 10px 28px;
+}
+QPushButton#btnGlobalStart:hover { background-color: #43a047; }
+QPushButton#btnGlobalStop {
+    background-color: #b3372f;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: bold;
+    padding: 10px 28px;
+}
+QPushButton#btnGlobalStop:hover { background-color: #e05249; }
+QLineEdit {
+    background-color: #1c1f24;
+    border: 1px solid #3a4048;
+    border-radius: 6px;
+    padding: 6px 8px;
+    color: #e8eaed;
+    selection-background-color: #8ab4f8;
+}
+QLineEdit:focus { border-color: #8ab4f8; }
+QSpinBox {
+    background-color: #1c1f24;
+    border: 1px solid #3a4048;
+    border-radius: 6px;
+    padding: 4px 6px;
+    color: #e8eaed;
+}
+QTableWidget {
+    background-color: #262b32;
+    alternate-background-color: #2b3038;
+    gridline-color: #3a4048;
+    border: 1px solid #3a4048;
+    border-radius: 6px;
+    selection-background-color: #3d5a80;
+    selection-color: #ffffff;
+}
+QTableWidget::item { padding: 4px; border: none; }
+QHeaderView::section {
+    background-color: #31363e;
+    color: #9aa0a6;
+    border: none;
+    border-right: 1px solid #3a4048;
+    padding: 6px;
+    font-weight: bold;
+}
+QTableCornerButton::section { background-color: #31363e; }
+QPlainTextEdit {
+    background-color: #16181d;
+    border: 1px solid #3a4048;
+    border-radius: 6px;
+    color: #b8e0b9;
+    font-family: "DejaVu Sans Mono", "Noto Sans Mono CJK SC", monospace;
+    font-size: 12px;
+    padding: 4px;
+}
+QScrollBar:vertical {
+    background: #23272e;
+    width: 10px;
+    border-radius: 5px;
+}
+QScrollBar::handle:vertical {
+    background: #4a5158;
+    min-height: 30px;
+    border-radius: 5px;
+}
+QScrollBar::handle:vertical:hover { background: #5a626a; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+QScrollBar:horizontal {
+    background: #23272e;
+    height: 10px;
+    border-radius: 5px;
+}
+QScrollBar::handle:horizontal {
+    background: #4a5158;
+    min-width: 30px;
+    border-radius: 5px;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
+QToolTip {
+    background-color: #31363e;
+    color: #e8eaed;
+    border: 1px solid #4a5158;
+    padding: 4px;
+}
+"""
 
 
 def normalize_task(entry):
@@ -167,6 +313,8 @@ class MainWindow(QMainWindow):
         self._log_file = None
         self._file_exists_cache = {}
         self.security = SecurityManager()
+        self.monitor = ProcessMonitor()
+        self.updater = Updater(VERSION)
         self._check_platform()
 
         central = QWidget()
@@ -175,13 +323,31 @@ class MainWindow(QMainWindow):
 
         # ---- 全局操作 (轻量级,立即初始化) ----
         global_row = QHBoxLayout()
-        start_everything = QPushButton("▶ 一键启动所有任务")
+        start_everything = QPushButton("▶  一键启动所有任务")
+        start_everything.setObjectName("btnGlobalStart")
+        start_everything.setMinimumHeight(46)
         start_everything.clicked.connect(self.start_everything)
-        stop_everything = QPushButton("■ 停止所有任务")
+        stop_everything = QPushButton("■  停止所有任务")
+        stop_everything.setObjectName("btnGlobalStop")
+        stop_everything.setMinimumHeight(46)
         stop_everything.clicked.connect(self.stop_everything)
         global_row.addWidget(start_everything)
         global_row.addWidget(stop_everything)
         global_row.addStretch(1)
+        
+        # 配置导入导出按钮
+        import_btn = QPushButton("📥 导入配置")
+        import_btn.clicked.connect(self.import_config)
+        export_btn = QPushButton("📤 导出配置")
+        export_btn.clicked.connect(self.export_config)
+        global_row.addWidget(import_btn)
+        global_row.addWidget(export_btn)
+        
+        # 远程更新按钮
+        update_btn = QPushButton("🔄 检查更新")
+        update_btn.clicked.connect(self.check_update)
+        global_row.addWidget(update_btn)
+        
         self._main_layout.addLayout(global_row)
 
         # ---- ROS 环境设置 (轻量级,立即初始化) ----
@@ -238,18 +404,25 @@ class MainWindow(QMainWindow):
     # ---------- 延迟初始化 ----------
 
     def _load_style(self):
-        """加载样式表"""
-        style_path = os.path.join(os.path.dirname(__file__), "style.qss")
+        """加载样式表:优先外部 style.qss,打包后回退到内置主题"""
+        style_path = os.path.join(BASE_DIR, "style.qss")
         if os.path.exists(style_path):
-            with open(style_path, 'r') as f:
+            with open(style_path, "r", encoding="utf-8") as f:
                 self.setStyleSheet(f.read())
+        else:
+            self.setStyleSheet(APP_QSS)
 
     def _init_heavy_components(self):
         """延迟初始化重量级组件"""
         # 延迟初始化日志视图
         self._init_log_file()
-        log_box = QGroupBox("运行日志 (同步保存到 logs/ 目录)")
-        log_layout = QVBoxLayout(log_box)
+        
+        # 创建标签页：日志和监控
+        self.tab_widget = QTabWidget()
+        
+        # 日志标签页
+        log_widget = QWidget()
+        log_layout = QVBoxLayout(log_widget)
         self.log_view = QPlainTextEdit()
         self.log_view.setReadOnly(True)
         self.log_view.setMaximumBlockCount(5000)
@@ -257,19 +430,65 @@ class MainWindow(QMainWindow):
         clear_btn = QPushButton("清空日志")
         clear_btn.clicked.connect(self.log_view.clear)
         log_layout.addWidget(clear_btn)
-
+        self.tab_widget.addTab(log_widget, "运行日志")
+        
+        # 监控标签页
+        monitor_widget = QWidget()
+        monitor_layout = QVBoxLayout(monitor_widget)
+        
+        # 系统资源监控
+        sys_group = QGroupBox("系统资源")
+        sys_layout = QHBoxLayout(sys_group)
+        
+        self.cpu_label = QLabel("CPU: 0%")
+        self.cpu_bar = QProgressBar()
+        self.cpu_bar.setRange(0, 100)
+        self.cpu_bar.setValue(0)
+        sys_layout.addWidget(self.cpu_label)
+        sys_layout.addWidget(self.cpu_bar)
+        
+        self.mem_label = QLabel("内存: 0%")
+        self.mem_bar = QProgressBar()
+        self.mem_bar.setRange(0, 100)
+        self.mem_bar.setValue(0)
+        sys_layout.addWidget(self.mem_label)
+        sys_layout.addWidget(self.mem_bar)
+        
+        monitor_layout.addWidget(sys_group)
+        
+        # 进程状态
+        proc_group = QGroupBox("运行中的进程")
+        proc_layout = QVBoxLayout(proc_group)
+        self.proc_list = QPlainTextEdit()
+        self.proc_list.setReadOnly(True)
+        self.proc_list.setMaximumHeight(150)
+        proc_layout.addWidget(self.proc_list)
+        monitor_layout.addWidget(proc_group)
+        
+        # 刷新按钮
+        refresh_btn = QPushButton("刷新监控")
+        refresh_btn.clicked.connect(self.refresh_monitor)
+        monitor_layout.addWidget(refresh_btn)
+        
+        self.tab_widget.addTab(monitor_widget, "系统监控")
+        
         # 替换占位符
         idx = self._main_layout.indexOf(self._log_box_placeholder)
         if idx >= 0:
             self._main_layout.removeWidget(self._log_box_placeholder)
             self._log_box_placeholder.deleteLater()
-            self._main_layout.insertWidget(idx, log_box)
-
+            self._main_layout.insertWidget(idx, self.tab_widget)
+        
         # 延迟刷新文件存在性
         self.refresh_file_existence()
-
+        
         # 打开软件后自动启动勾选了的任务(延时错开)
         QTimer.singleShot(1000, self.auto_start_tasks)
+        
+        # 启动监控定时器
+        self.monitor_timer = QTimer()
+        self.monitor_timer.timeout.connect(self.refresh_monitor)
+        self.monitor_timer.start(5000)  # 每5秒刷新一次
 
     # ---------- UI 构建 ----------
 
@@ -281,6 +500,14 @@ class MainWindow(QMainWindow):
         table.setHorizontalHeaderLabels(
             ["状态", "文件路径", "启动参数", "崩溃重启", "自启动", "操作"])
         table.horizontalHeader().setSectionResizeMode(COL_PATH, QHeaderView.Stretch)
+        table.setColumnWidth(COL_STATUS, 90)
+        table.setColumnWidth(COL_RESTART, 70)
+        table.setColumnWidth(COL_AUTOSTART, 70)
+        table.setColumnWidth(COL_OPS, 170)
+        table.setShowGrid(False)
+        table.setAlternatingRowColors(True)
+        table.verticalHeader().setVisible(False)
+        table.verticalHeader().setDefaultSectionSize(38)
         table.setSelectionBehavior(QAbstractItemView.SelectRows)
         table.itemChanged.connect(
             lambda item, k=kind: self.on_item_changed(k, item))
@@ -326,7 +553,8 @@ class MainWindow(QMainWindow):
         )
 
         status_item = QTableWidgetItem("● 已停止")
-        status_item.setForeground(Qt.gray)
+        status_item.setForeground(QColor("#80868b"))
+        status_item.setTextAlignment(Qt.AlignCenter)
         status_item.setFlags(status_item.flags() & ~Qt.ItemIsEditable)
         table.setItem(row, COL_STATUS, status_item)
 
@@ -343,18 +571,23 @@ class MainWindow(QMainWindow):
         restart_item = QTableWidgetItem("")
         restart_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
         restart_item.setCheckState(Qt.Checked if task.auto_restart else Qt.Unchecked)
+        restart_item.setTextAlignment(Qt.AlignCenter)
         table.setItem(row, COL_RESTART, restart_item)
 
         autostart_item = QTableWidgetItem("")
         autostart_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
         autostart_item.setCheckState(Qt.Checked if task.auto_start else Qt.Unchecked)
+        autostart_item.setTextAlignment(Qt.AlignCenter)
         table.setItem(row, COL_AUTOSTART, autostart_item)
 
         op_widget = QWidget()
         op_layout = QHBoxLayout(op_widget)
-        op_layout.setContentsMargins(2, 2, 2, 2)
+        op_layout.setContentsMargins(4, 3, 4, 3)
+        op_layout.setSpacing(6)
         start_btn = QPushButton("启动")
+        start_btn.setObjectName("btnStart")
         stop_btn = QPushButton("停止")
+        stop_btn.setObjectName("btnStop")
         start_btn.clicked.connect(lambda _, p=path_item: self.start_row(table, p))
         stop_btn.clicked.connect(lambda _, p=path_item: self.stop_row(table, p))
         op_layout.addWidget(start_btn)
@@ -414,10 +647,10 @@ class MainWindow(QMainWindow):
         """文件不存在时路径标红"""
         task = path_item.data(Qt.UserRole)
         if not task.is_running() and not task.exists(cache):
-            path_item.setForeground(Qt.red)
+            path_item.setForeground(QColor("#ef5350"))
             path_item.setToolTip(task.path + "\n⚠ 文件不存在!")
         else:
-            path_item.setForeground(Qt.black)
+            path_item.setForeground(QColor("#d7dae0"))
             path_item.setToolTip(task.path)
 
     def refresh_file_existence(self):
@@ -468,10 +701,10 @@ class MainWindow(QMainWindow):
         status_item = table.item(row, COL_STATUS)
         if running:
             status_item.setText("● 运行中")
-            status_item.setForeground(Qt.darkGreen)
+            status_item.setForeground(QColor("#66bb6a"))
         else:
             status_item.setText("● 已停止")
-            status_item.setForeground(Qt.gray)
+            status_item.setForeground(QColor("#80868b"))
 
     def on_process_output(self, task, text):
         name = os.path.basename(task.path)
@@ -706,6 +939,154 @@ class MainWindow(QMainWindow):
         if system not in ["Linux", "Windows", "Darwin"]:
             print(f"警告：未测试的平台 {system}")
         return system
+
+    # ---------- 配置导入导出 ----------
+
+    def import_config(self):
+        """导入配置"""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "导入配置文件", os.path.expanduser("~"),
+            "JSON 文件 (*.json);;所有文件 (*)")
+        if not path:
+            return
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                new_config = json.load(f)
+            # 验证配置格式
+            if "ros_setup" not in new_config:
+                QMessageBox.warning(self, "格式错误", "配置文件格式不正确")
+                return
+            # 备份当前配置
+            self.export_config(backup=True)
+            # 应用新配置
+            self.config.update(new_config)
+            self.ros_setup_edit.setText(self.config.get("ros_setup", ""))
+            self.ws_setup_edit.setText(self.config.get("ws_setup", ""))
+            self.save_config()
+            QMessageBox.information(self, "导入成功", "配置已导入，请重启程序以完全应用")
+        except Exception as e:
+            QMessageBox.critical(self, "导入失败", str(e))
+
+    def export_config(self, backup=False):
+        """导出配置"""
+        if backup:
+            path = CONFIG_FILE + ".backup"
+        else:
+            path, _ = QFileDialog.getSaveFileName(
+                self, "导出配置文件", os.path.expanduser("~/config_backup.json"),
+                "JSON 文件 (*.json)")
+            if not path:
+                return
+        try:
+            self.save_config()
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(self.config, f, ensure_ascii=False, indent=2)
+            if not backup:
+                QMessageBox.information(self, "导出成功", f"配置已导出到:\n{path}")
+            self.log("配置已导出到: %s" % path)
+        except Exception as e:
+            if not backup:
+                QMessageBox.critical(self, "导出失败", str(e))
+
+    # ---------- 远程更新 ----------
+
+    def check_update(self):
+        """检查更新"""
+        self.log("正在检查更新...")
+        
+        # 读取更新配置
+        config_path = os.path.join(BASE_DIR, "update_config.json")
+        if os.path.exists(config_path):
+            with open(config_path, "r", encoding="utf-8") as f:
+                update_config = json.load(f)
+            repo_owner = update_config.get("repo_owner", "")
+            repo_name = update_config.get("repo_name", "")
+        else:
+            repo_owner = ""
+            repo_name = ""
+        
+        if not repo_owner or not repo_name:
+            QMessageBox.information(self, "检查更新", 
+                "未配置更新服务器。请编辑 update_config.json 文件。")
+            return
+        
+        # 设置更新服务器
+        self.updater.set_update_server(f"https://api.github.com/repos/{repo_owner}/{repo_name}")
+        
+        # 在后台线程中检查更新
+        QTimer.singleShot(100, self._do_check_update)
+
+    def _do_check_update(self):
+        """执行更新检查"""
+        try:
+            result = self.updater.check_for_updates()
+            if result and "tag_name" in result:
+                latest_version = result["tag_name"].lstrip("v")
+                if self.updater.compare_versions(VERSION, latest_version) < 0:
+                    reply = QMessageBox.question(
+                        self, "发现新版本",
+                        f"发现新版本 {latest_version}，当前版本 {VERSION}\n\n"
+                        f"更新说明:\n{result.get('body', '无')}\n\n"
+                        f"是否打开下载页面？",
+                        QMessageBox.Yes | QMessageBox.No
+                    )
+                    if reply == QMessageBox.Yes:
+                        # 打开浏览器下载
+                        import webbrowser
+                        webbrowser.open(result.get("html_url", ""))
+                else:
+                    QMessageBox.information(self, "检查更新", "当前已是最新版本")
+            else:
+                QMessageBox.information(self, "检查更新", "当前已是最新版本或无法连接到更新服务器")
+        except Exception as e:
+            QMessageBox.warning(self, "检查更新失败", f"无法连接到更新服务器:\n{str(e)}")
+
+    def _download_update(self, release_info):
+        """下载更新"""
+        self.log("开始下载更新...")
+        import webbrowser
+        # 打开浏览器让用户手动下载
+        if "assets" in release_info and release_info["assets"]:
+            download_url = release_info["assets"][0].get("browser_download_url", "")
+            if download_url:
+                webbrowser.open(download_url)
+        else:
+            webbrowser.open(release_info.get("html_url", ""))
+
+    # ---------- 系统监控 ----------
+
+    def refresh_monitor(self):
+        """刷新系统监控"""
+        try:
+            import psutil
+            # 获取CPU使用率
+            cpu_percent = psutil.cpu_percent(interval=0.1)
+            self.cpu_label.setText(f"CPU: {cpu_percent:.1f}%")
+            self.cpu_bar.setValue(int(cpu_percent))
+            
+            # 获取内存使用率
+            mem = psutil.virtual_memory()
+            self.mem_label.setText(f"内存: {mem.percent:.1f}%")
+            self.mem_bar.setValue(int(mem.percent))
+            
+            # 获取运行中的进程
+            running_tasks = []
+            for kind in ("launch", "py"):
+                for r, task, _ in self._rows_of(self._table_of(kind)):
+                    if task.is_running():
+                        name = os.path.basename(task.path)
+                        pid = task.process.processId() if task.process else "N/A"
+                        running_tasks.append(f"● {name} (PID: {pid})")
+            
+            if running_tasks:
+                self.proc_list.setPlainText("\n".join(running_tasks))
+            else:
+                self.proc_list.setPlainText("无运行中的进程")
+        except ImportError:
+            self.cpu_label.setText("CPU: psutil未安装")
+            self.mem_label.setText("内存: psutil未安装")
+        except Exception as e:
+            self.log(f"监控刷新失败: {e}")
 
 
 def main():

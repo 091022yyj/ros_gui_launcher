@@ -1,0 +1,73 @@
+[18:15:49] >>> 启动: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_gmapping.launch 
+[18:15:50] [wpb_gmapping.launch] [31m[ERROR] [1785492950.462883329]: Couldn't open joystick /dev/input/js0. Will retry every second.[0m
+[18:15:50] [wpb_gmapping.launch] INFO: cannot create a symlink to latest log directory: [Errno 17] File exists: '/home/ub/.ros/log/cda5cdc6-8cc8-11f1-a296-01da36aef298' -> '/home/ub/.ros/log/latest'
+[18:15:51] [wpb_gmapping.launch] Warning: TF_REPEATED_DATA ignoring data with redundant timestamp for frame odom (parent map) at time 267.002000 according to authority unknown_publisher
+[18:15:51] [wpb_gmapping.launch]          at line 277 in /tmp/binarydeb/ros-noetic-tf2-0.7.10/src/buffer_core.cpp
+[18:15:51] [wpb_gmapping.launch] [33m[WARN] [1785492951.724091109]: TF_REPEATED_DATA ignoring data with redundant timestamp for frame odom (parent map) at time 267.002000 according to authority unknown_publisher[0m
+[18:15:55] [wpb_gmapping.launch] Laser Pose= -1.34429e-10 1.57666e-10 -8.866e-12
+[18:15:58] === 进程结束: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_gmapping.launch
+[18:15:58] <<< 停止: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_gmapping.launch
+[18:16:24] <<< 停止: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_gmapping.launch
+[18:16:24] <<< 停止: /home/ub/catkin_ws/src/wpr_simulation/scripts/demo_map_tools.py
+[19:24:39] >>> 启动: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_gmapping.launch 
+[19:24:40] [wpb_gmapping.launch] [31m[ERROR] [1785497080.352937152]: Couldn't open joystick /dev/input/js0. Will retry every second.[0m
+[19:24:40] [wpb_gmapping.launch] INFO: cannot create a symlink to latest log directory: [Errno 2] No such file or directory: '/home/ub/.ros/log/latest'
+[19:24:41] [wpb_gmapping.launch] Warning: TF_REPEATED_DATA ignoring data with redundant timestamp for frame odom (parent map) at time 267.066000 according to authority unknown_publisher
+[19:24:41] [wpb_gmapping.launch]          at line 277 in /tmp/binarydeb/ros-noetic-tf2-0.7.10/src/buffer_core.cpp
+[19:24:41] [wpb_gmapping.launch] [33m[WARN] [1785497081.861521907, 267.016000000]: TF_REPEATED_DATA ignoring data with redundant timestamp for frame odom (parent map) at time 267.066000 according to authority unknown_publisher[0m
+[19:24:42] >>> 启动: /home/ub/catkin_ws/src/wpr_simulation/scripts/demo_map_tools.py 
+[19:24:43] [demo_map_tools.py] Traceback (most recent call last):
+[19:24:43] [demo_map_tools.py]   File "/home/ub/catkin_ws/src/wpr_simulation/scripts/demo_map_tools.py", line 25, in <module>
+[19:24:43] [demo_map_tools.py]     ros.spin()
+[19:24:43] [demo_map_tools.py] NameError: name 'ros' is not defined
+[19:24:44] === 进程结束: /home/ub/catkin_ws/src/wpr_simulation/scripts/demo_map_tools.py
+[19:24:44] [wpb_gmapping.launch] Laser Pose= 6.4054e-11 -6.85179e-11 -4.52507e-12
+[19:24:47] === 进程结束: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_gmapping.launch
+[19:24:47] <<< 停止: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_gmapping.launch
+[19:24:47] <<< 停止: /home/ub/catkin_ws/src/wpr_simulation/scripts/demo_map_tools.py
+[19:25:03] <<< 停止: /home/ub/catkin_ws/src/wpr_simulation/scripts/demo_map_tools.py
+[19:25:04] >>> 启动: /home/ub/catkin_ws/src/wpr_simulation/scripts/demo_map_tools.py 
+[19:25:05] === 进程结束: /home/ub/catkin_ws/src/wpr_simulation/scripts/demo_map_tools.py
+[19:25:05] <<< 停止: /home/ub/catkin_ws/src/wpr_simulation/scripts/demo_map_tools.py
+[19:34:47] >>> 启动: /home/ub/catkin_ws/src/wpr_simulation/scripts/demo_map_tools.py 
+[19:35:18] >>> 启动: /home/ub/玉洁队/321/src/competition_simulation/launch/nav_yolo.launch 
+[19:35:18] [nav_yolo.launch] [31mResource not found: competition_simulation
+[19:35:18] [nav_yolo.launch] ROS path [0]=/opt/ros/noetic/share/ros
+[19:35:18] [nav_yolo.launch] ROS path [1]=/home/ub/catkin_ws/src
+[19:35:18] [nav_yolo.launch] ROS path [2]=/opt/ros/noetic/share[0m
+[19:35:18] [nav_yolo.launch] [31mThe traceback for the exception was written to the log file[0m
+[19:35:18] [nav_yolo.launch] ... logging to /home/ub/.ros/log/e7f4f5d4-8cd3-11f1-a296-01da36aef298/roslaunch-ub-Legion-R7000P-ADR10-75673.log
+[19:35:18] [nav_yolo.launch] Checking log directory for disk usage. This may take a while.
+[19:35:18] [nav_yolo.launch] Press Ctrl-C to interrupt
+[19:35:18] [nav_yolo.launch] Done checking log file disk usage. Usage is <1GB.
+[19:35:18] [nav_yolo.launch] ]2;/home/ub/玉洁队/321/src/competition_simulation/launch/nav_yolo.launch
+[19:35:18] === 进程结束: /home/ub/玉洁队/321/src/competition_simulation/launch/nav_yolo.launch
+[19:35:22] >>> 启动: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_gmapping.launch 
+[19:35:23] [wpb_gmapping.launch] [31m[ERROR] [1785497723.553375608]: Couldn't open joystick /dev/input/js0. Will retry every second.[0m
+[19:35:24] [wpb_gmapping.launch] Warning: TF_REPEATED_DATA ignoring data with redundant timestamp for frame odom (parent map) at time 267.047000 according to authority unknown_publisher
+[19:35:24] [wpb_gmapping.launch]          at line 277 in /tmp/binarydeb/ros-noetic-tf2-0.7.10/src/buffer_core.cpp
+[19:35:24] [wpb_gmapping.launch] [33m[WARN] [1785497724.982858712, 266.998000000]: TF_REPEATED_DATA ignoring data with redundant timestamp for frame odom (parent map) at time 267.047000 according to authority unknown_publisher[0m
+[19:35:25] >>> 启动: /home/ub/玉洁队/321/src/competition_simulation/launch/nav_yolo.launch 
+[19:35:25] [demo_map_tools.py] Unable to register with master node [http://localhost:11311]: master may not be running yet. Will keep trying.
+[19:35:25] [nav_yolo.launch] [31mResource not found: competition_simulation
+[19:35:25] [nav_yolo.launch] ROS path [0]=/opt/ros/noetic/share/ros
+[19:35:25] [nav_yolo.launch] ROS path [1]=/home/ub/catkin_ws/src
+[19:35:25] [nav_yolo.launch] ROS path [2]=/opt/ros/noetic/share[0m
+[19:35:25] [nav_yolo.launch] [31mThe traceback for the exception was written to the log file[0m
+[19:35:25] [nav_yolo.launch] ... logging to /home/ub/.ros/log/eaa03be0-8cd3-11f1-a296-01da36aef298/roslaunch-ub-Legion-R7000P-ADR10-77056.log
+[19:35:25] [nav_yolo.launch] Checking log directory for disk usage. This may take a while.
+[19:35:25] [nav_yolo.launch] Press Ctrl-C to interrupt
+[19:35:25] [nav_yolo.launch] Done checking log file disk usage. Usage is <1GB.
+[19:35:25] [nav_yolo.launch] ]2;/home/ub/玉洁队/321/src/competition_simulation/launch/nav_yolo.launch
+[19:35:25] [demo_map_tools.py] Traceback (most recent call last):
+[19:35:25] [demo_map_tools.py]   File "/home/ub/catkin_ws/src/wpr_simulation/scripts/demo_map_tools.py", line 25, in <module>
+[19:35:25] [demo_map_tools.py]     ros.spin()
+[19:35:25] [demo_map_tools.py] NameError: name 'ros' is not defined
+[19:35:25] === 进程结束: /home/ub/玉洁队/321/src/competition_simulation/launch/nav_yolo.launch
+[19:35:26] === 进程结束: /home/ub/catkin_ws/src/wpr_simulation/scripts/demo_map_tools.py
+[19:35:28] [wpb_gmapping.launch] Laser Pose= -1.34429e-10 1.57666e-10 -8.866e-12
+[19:35:32] === 进程结束: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_gmapping.launch
+[19:35:32] <<< 停止: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_gmapping.launch
+[19:35:32] <<< 停止: /home/ub/玉洁队/321/src/competition_simulation/launch/nav_yolo.launch
+[19:35:32] <<< 停止: /home/ub/catkin_ws/src/wpr_simulation/scripts/demo_map_tools.py
+[19:38:06] <<< 停止: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_gmapping.launch

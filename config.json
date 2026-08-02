@@ -1,0 +1,7 @@
+{
+  "ros_setup": "/opt/ros/noetic/setup.bash",
+  "ws_setup": "/home/ub/catkin_ws/devel/setup.bash",
+  "start_delay": 3,
+  "launch_files": [],
+  "py_files": []
+}
