@@ -110,7 +110,7 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
-VERSION = "3.5.2"
+VERSION = "3.5.3"
 
 DEFAULT_CONFIG = {
     "ros_setup": "/opt/ros/noetic/setup.bash",
@@ -530,8 +530,12 @@ class ProcessRow:
         parts = []
         if ros_setup and os.path.exists(ros_setup):
             parts.append("source '%s'" % ros_setup)
-        if ws_setup and os.path.exists(os.path.expanduser(ws_setup)):
-            parts.append("source '%s'" % os.path.expanduser(ws_setup))
+        ws_path = ws_setup or ""
+        if not (ws_path and os.path.exists(os.path.expanduser(ws_path))):
+            # 自动探测常见工作空间(兼容未手动配置的情况)
+            ws_path = self._auto_detect_ws()
+        if ws_path and os.path.exists(os.path.expanduser(ws_path)):
+            parts.append("source '%s'" % os.path.expanduser(ws_path))
         if self.kind == "launch":
             parts.append("roslaunch '%s'" % self.path)
         else:
@@ -540,6 +544,20 @@ class ProcessRow:
             parts[-1] += " " + self.args.strip()
         parts.append('echo "[进程已退出] 退出码: $?"')
         return " && ".join(parts)
+
+    @staticmethod
+    def _auto_detect_ws():
+        """自动探测常见ROS工作空间"""
+        import glob
+        candidates = []
+        home = os.path.expanduser("~")
+        for ws in ("catkin_ws", "ros_ws", "ros_workspace", "dev_ws", "workspace"):
+            candidates.append(os.path.join(home, ws, "devel", "setup.bash"))
+        candidates.append("/opt/ros/noetic/setup.bash")
+        for c in candidates:
+            if os.path.exists(c):
+                return c
+        return ""
 
     def start(self, ros_setup, ws_setup, log_callback, finish_callback):
         if self.is_running():
@@ -607,6 +625,11 @@ class MainWindow(QMainWindow):
         self.resize(1400, 900)
         self._load_style()
         self.config = self.load_config()
+        # 自动探测工作空间:ws_setup为空时自动填充常见路径(输入框会显示,用户保存后持久化)
+        if not self.config.get("ws_setup"):
+            detected = ProcessRow._auto_detect_ws()
+            if detected:
+                self.config["ws_setup"] = detected
         self._loading = False
         self._log_file = None
         self._file_exists_cache = {}
