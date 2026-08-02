@@ -41,6 +41,11 @@ for f in update_config.json style.qss; do
     fi
 done
 
+# 复制plugins目录
+if [ -d "dist/plugins" ]; then
+    cp -r "dist/plugins" "$PKG_ROOT/opt/$APP_NAME/"
+fi
+
 if [ -f "icon.png" ]; then
     cp icon.png "$PKG_ROOT/usr/share/icons/hicolor/128x128/apps/ros-gui-launcher.png"
 fi

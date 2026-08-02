@@ -7,7 +7,7 @@ a = Analysis(
     ['launcher_gui.py'],
     pathex=[],
     binaries=[],
-    datas=[('config.json', '.'), ('icon.png', '.'), ('style.qss', '.'), ('update_config.json', '.')],
+    datas=[('config.json', '.'), ('icon.png', '.'), ('style.qss', '.'), ('update_config.json', '.'), ('plugins', 'plugins')],
     hiddenimports=['PyQt5', 'psutil', 'requests', 'packaging', 'yaml'],
     hookspath=[],
     hooksconfig={},

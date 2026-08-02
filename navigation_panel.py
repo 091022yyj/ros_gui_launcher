@@ -7,7 +7,6 @@
 - 停止导航/取消目标
 """
 import os
-import subprocess
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
                              QLabel, QPushButton, QLineEdit, QDoubleSpinBox,
@@ -39,16 +38,9 @@ class NavigationWidget(QWidget):
         self.ws_setup = ws_setup
         self._build_source_cmd()
 
-    def _run_cmd(self, cmd, timeout=15):
-        full = f"{self.source_cmd} && {cmd}" if self.source_cmd else cmd
-        try:
-            result = subprocess.run(["bash", "-c", full], capture_output=True,
-                                    text=True, timeout=timeout)
-            return result.stdout.strip(), result.stderr.strip(), result.returncode
-        except subprocess.TimeoutExpired:
-            return "", "命令超时", 1
-        except Exception as e:
-            return "", str(e), 1
+    def _run_cmd(self, cmd, timeout=8):
+        from env_cache import run_cmd
+        return run_cmd(cmd, self.ros_setup, self.ws_setup, timeout)
 
     def _init_ui(self):
         layout = QVBoxLayout(self)
@@ -144,23 +136,47 @@ class NavigationWidget(QWidget):
         import math
         theta_rad = math.radians(theta)
         # 使用python脚本通过actionlib发送(后台线程执行,不阻塞界面)
+        # frame_id自动选择: 优先map,不存在则回退odom,均不存在时给出明确错误
         script = f'''
-import math, rospy, actionlib
+import math, rospy, actionlib, tf2_ros
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
-rospy.init_node("gui_nav_goal")
+rospy.init_node("gui_nav_goal", anonymous=True)
 client = actionlib.SimpleActionClient("move_base", MoveBaseAction)
 if not client.wait_for_server(rospy.Duration(5)):
-    print("ERROR:move_base服务不可用")
+    print("ERROR:move_base服务5秒内无响应,请确认导航环境已启动(如 navigation.launch 或 Gazebo导航)")
+    exit(1)
+def frame_available(fid):
+    try:
+        buf = tf2_ros.Buffer()
+        tf2_ros.TransformListener(buf)
+        for i in range(6):
+            try:
+                buf.lookup_transform(fid, "base_link", rospy.Time(0), rospy.Duration(0.2))
+                return True
+            except Exception:
+                rospy.sleep(0.1)
+    except Exception:
+        pass
+    return False
+frame_id = "map" if frame_available("map") else "odom"
+if not frame_available(frame_id):
+    print("ERROR:frame_id map/odom均不存在,请确认定位与导航环境已启动(amcl/map_server),frame_id不匹配会导致导航无响应")
     exit(1)
 goal = MoveBaseGoal()
-goal.target_pose.header.frame_id = "map"
+goal.target_pose.header.frame_id = frame_id
 goal.target_pose.pose.position.x = {x}
 goal.target_pose.pose.position.y = {y}
 goal.target_pose.pose.orientation.z = math.sin({theta_rad}/2)
 goal.target_pose.pose.orientation.w = math.cos({theta_rad}/2)
 client.send_goal(goal)
 client.wait_for_result(rospy.Duration(30))
-print("SUCCESS" if client.get_state() == 3 else "FAILED")
+state = client.get_state()
+if state == 3:
+    print("SUCCESS")
+elif state == 4:
+    print("ERROR:move_base拒绝目标,目标点可能不可达或存在障碍物")
+else:
+    print("ERROR:导航失败,state=%d,请检查move_base与代价地图状态" % state)
 '''
         self.status_label.setText(f"⏳ 导航中: 目标[{name}] ({x}, {y}) ...")
 
@@ -172,18 +188,17 @@ print("SUCCESS" if client.get_state() == 3 else "FAILED")
                 self.log_if_any(f"导航到[{name}]成功")
                 QMessageBox.information(self, "导航", f"到达目标点 [{name}]")
             elif "ERROR" in stdout:
-                self.status_label.setText("❌ move_base服务不可用")
-                QMessageBox.warning(self, "导航失败", "move_base服务不可用,请确认导航已启动")
+                msg = stdout.split("ERROR:", 1)[1].strip()
+                self.status_label.setText(f"❌ 导航失败: {msg}")
+                self.log_if_any(f"导航到[{name}]失败: {msg}")
+                QMessageBox.warning(self, "导航失败", msg)
             else:
                 self.status_label.setText(f"❌ 导航失败: {name}")
                 self.log_if_any(f"导航到[{name}]失败: {stdout}{stderr[:100]}")
                 QMessageBox.warning(self, "导航", f"导航失败:\n{stdout}{stderr[:200]}")
 
-        self._run_bg(
-            lambda: {"stdout": None, "stderr": None} if False else
-                    self._run_cmd(f"python3 -c '{script}'", timeout=40),
-            on_done
-        )
+        self._run_bg(lambda: self._run_cmd(f"python3 -c '{script}'", timeout=40),
+                     on_done)
 
     def _cancel_goal(self):
         self._run_bg(lambda: self._run_cmd(
@@ -195,13 +210,17 @@ print("SUCCESS" if client.get_state() == 3 else "FAILED")
         self.log_if_any("已清除代价地图")
 
     def _nav_status(self):
-        stdout, stderr, code = self._run_cmd(
+        self.status_label.setText("⏳ 查询导航状态...")
+
+        def on_done(result):
+            stdout = result.get("stdout", "")
+            text = stdout or "move_base未运行或无状态消息"
+            self.status_label.setText("📡 " + text.replace("\n", " ")[:50])
+            QMessageBox.information(self, "导航状态", text)
+
+        self._run_bg(lambda: self._run_cmd(
             "rostopic echo -n1 /move_base/status 2>/dev/null | grep -E 'status|text' | head -4",
-            timeout=8)
-        if stdout:
-            QMessageBox.information(self, "导航状态", stdout or "状态未知")
-        else:
-            QMessageBox.information(self, "导航状态", "move_base未运行或无状态消息")
+            timeout=6), on_done)
 
     def _add_waypoint(self):
         name = self.wp_name_edit.text().strip()

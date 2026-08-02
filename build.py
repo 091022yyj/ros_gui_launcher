@@ -33,6 +33,14 @@ def build_application(clean=False, debug=False, onefile=True):
             if os.path.exists(src):
                 shutil.copy2(src, dst)
                 print(f"已复制: {config_file}")
+        
+        # 复制plugins目录
+        plugins_src = os.path.join(os.path.dirname(__file__), "plugins")
+        plugins_dst = os.path.join(dist_dir, "plugins")
+        if os.path.exists(plugins_src):
+            shutil.rmtree(plugins_dst, ignore_errors=True)
+            shutil.copytree(plugins_src, plugins_dst)
+            print("已复制: plugins/")
     else:
         print("打包失败：")
         print(result.stderr)

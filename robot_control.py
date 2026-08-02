@@ -7,11 +7,12 @@
 - 紧急停止
 """
 import os
-import subprocess
 from PyQt5.QtCore import Qt, QTimer, QRectF
 from PyQt5.QtGui import QColor, QPen, QPainter, QFont
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
-                             QLabel, QPushButton, QSlider, QMessageBox)
+                             QLabel, QPushButton, QSlider, QMessageBox,
+                             QInputDialog)
+from env_cache import run_cmd
 
 
 class SpeedGauge(QWidget):
@@ -111,12 +112,8 @@ class RobotControlWidget(QWidget):
         self._build_source_cmd()
 
     def _run_cmd(self, cmd, timeout=3):
-        full = f"{self.source_cmd} && {cmd}" if self.source_cmd else cmd
-        try:
-            subprocess.run(["bash", "-c", full], capture_output=True,
-                           text=True, timeout=timeout)
-        except Exception:
-            pass
+        # 复用env_cache: 环境只source一次,避免每次启动bash开销(300ms->10ms)
+        return run_cmd(cmd, self.ros_setup, self.ws_setup, timeout=timeout)
 
     def _init_ui(self):
         layout = QVBoxLayout(self)
@@ -176,9 +173,17 @@ class RobotControlWidget(QWidget):
         self.stop_btn.clicked.connect(self.emergency_stop)
         btn_row.addWidget(self.stop_btn)
 
+        detect_btn = QPushButton("自动检测")
+        detect_btn.clicked.connect(self._auto_detect_topic)
+        btn_row.addWidget(detect_btn)
+
         topic_btn = QPushButton("设置话题")
         topic_btn.clicked.connect(self._set_topic)
         btn_row.addWidget(topic_btn)
+
+        self.topic_label = QLabel(f"当前话题: {self.cmd_vel_topic}")
+        self.topic_label.setStyleSheet("color: #6272a4; padding: 4px;")
+        btn_row.addWidget(self.topic_label)
         layout.addLayout(btn_row)
 
         layout.addStretch()
@@ -194,12 +199,45 @@ class RobotControlWidget(QWidget):
     def resume_timers(self):
         self.publish_timer.start(200)
 
+    def _detect_topics(self):
+        """自动检测cmd相关话题,返回话题列表"""
+        out, _, _ = self._run_cmd(
+            "rostopic list 2>/dev/null | grep -E 'cmd_vel|cmd_vel_mux|teleop' | head -10",
+            timeout=5)
+        if not out:
+            return []
+        return [t.strip() for t in out.splitlines() if t.strip()]
+
+    def _pick_topic(self, topics):
+        """弹出下拉选择框(可手动输入),供选择话题"""
+        items = topics if topics else [self.cmd_vel_topic or "/cmd_vel"]
+        try:
+            current = items.index(self.cmd_vel_topic)
+        except ValueError:
+            current = 0
+        topic, ok = QInputDialog.getItem(
+            self, "设置控制话题", "选择或输入cmd_vel话题:", items, current, True)
+        if ok and topic and topic.strip():
+            self.cmd_vel_topic = topic.strip()
+            self.topic_label.setText(f"当前话题: {self.cmd_vel_topic}")
+
+    def _auto_detect_topic(self):
+        """自动检测话题: 找到/cmd_vel直接使用,否则列出候选供选择"""
+        topics = self._detect_topics()
+        if not topics:
+            QMessageBox.information(self, "自动检测", "未检测到cmd相关话题\n"
+                                     "请确认ROS节点已启动,或手动设置话题")
+            return
+        if "/cmd_vel" in topics:
+            self.cmd_vel_topic = "/cmd_vel"
+            self.topic_label.setText(f"当前话题: {self.cmd_vel_topic}")
+            QMessageBox.information(self, "自动检测", "已自动使用话题: /cmd_vel")
+        else:
+            self._pick_topic(topics)
+
     def _set_topic(self):
-        from PyQt5.QtWidgets import QInputDialog
-        topic, ok = QInputDialog.getText(self, "设置控制话题", "cmd_vel话题:",
-                                         text=self.cmd_vel_topic)
-        if ok and topic:
-            self.cmd_vel_topic = topic
+        topics = self._detect_topics() or [self.cmd_vel_topic]
+        self._pick_topic(topics)
 
     def keyPressEvent(self, event):
         key = event.key()
@@ -243,12 +281,10 @@ class RobotControlWidget(QWidget):
         self.linear = 0.0
         self.angular = 0.0
         self._update_gauges()
-        # 发布3次零速度确保停止
-        for _ in range(3):
-            self._run_cmd(
-                f"rostopic pub -1 {self.cmd_vel_topic} geometry_msgs/Twist "
-                f"'{{linear: {{x: 0, y: 0, z: 0}}, angular: {{x: 0, y: 0, z: 0}}}}'"
-            )
+        # 3次零速发布合并为一条bash命令,只启动1次进程,确保零速立即发出
+        pub = (f"rostopic pub -1 {self.cmd_vel_topic} geometry_msgs/Twist "
+               f"'{{linear: {{x: 0, y: 0, z: 0}}, angular: {{x: 0, y: 0, z: 0}}}}'")
+        self._run_cmd("; ".join([pub] * 3), timeout=5)
         self.log_if_any("已紧急停止")
 
     def log_if_any(self, text):

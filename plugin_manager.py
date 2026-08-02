@@ -7,6 +7,7 @@
 """
 import os
 import sys
+import ast
 import json
 import importlib.util
 
@@ -46,6 +47,34 @@ class PluginManager:
         except OSError:
             pass
     
+    def _extract_metadata(self, plugin_path):
+        """使用 AST 安全提取插件元数据(不执行模块代码), 失败时返回空 dict"""
+        try:
+            with open(plugin_path, "r", encoding="utf-8") as f:
+                tree = ast.parse(f.read())
+        except (OSError, SyntaxError):
+            return {}
+        
+        info = {}
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef) or node.name != "plugin_info":
+                continue
+            # 跳过 docstring 等表达式语句, 查找返回语句
+            return_node = None
+            for stmt in node.body:
+                if isinstance(stmt, ast.Return):
+                    return_node = stmt
+                    break
+            if return_node is None or not isinstance(return_node.value, ast.Dict):
+                continue
+            ret = return_node.value
+            for key_node, value_node in zip(ret.keys, ret.values):
+                if isinstance(key_node, ast.Constant) and isinstance(key_node.value, str):
+                    key = key_node.value
+                    if isinstance(value_node, ast.Constant):
+                        info[key] = value_node.value
+        return info
+
     def discover_plugins(self):
         """发现可用插件"""
         discovered = []
@@ -63,15 +92,18 @@ class PluginManager:
                     discovered.append({
                         "name": item,
                         "path": plugin_path,
-                        "type": "package"
+                        "type": "package",
+                        "info": self._extract_metadata(init_file)
                     })
             
             # 检查是否是Python文件
             elif item.endswith(".py") and not item.startswith("_"):
+                metadata = self._extract_metadata(plugin_path)
                 discovered.append({
                     "name": item[:-3],
                     "path": plugin_path,
-                    "type": "module"
+                    "type": "module",
+                    "info": metadata
                 })
         
         return discovered
@@ -110,6 +142,9 @@ class PluginManager:
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)
             
+            # 将模块注册到 sys.modules, 防止同目录重名模块间 import 冲突
+            sys.modules.setdefault("plugin_" + plugin_name, module)
+            
             # 检查插件接口
             if not hasattr(module, "plugin_info"):
                 return {"success": False, "error": "插件缺少 plugin_info 函数"}
@@ -146,6 +181,9 @@ class PluginManager:
                     module.plugin_unload()
                 except Exception:
                     pass
+            
+            # 从 sys.modules 中移除
+            sys.modules.pop("plugin_" + plugin_name, None)
             
             del self.loaded_plugins[plugin_name]
             return True
