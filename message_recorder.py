@@ -89,10 +89,12 @@ class MessageRecorder:
             full_cmd = f"{self.source_cmd} && {cmd}"
         
         try:
+            # 使用 start_new_session=True 创建新进程组，便于后续杀死
             self.recording_process = subprocess.Popen(
                 ["bash", "-c", full_cmd],
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
+                stderr=subprocess.PIPE,
+                preexec_fn=os.setsid  # 创建新会话/进程组
             )
             return {"success": True, "bag_path": bag_path}
         except Exception as e:
@@ -104,18 +106,48 @@ class MessageRecorder:
             return {"success": False, "error": "未在录制中"}
         
         try:
-            # 发送Ctrl+C信号
-            self.recording_process.send_signal(signal.SIGINT)
-            self.recording_process.wait(timeout=5)
+            # 获取进程组ID
+            pgid = os.getpgid(self.recording_process.pid)
+            # 杀死整个进程组
+            os.killpg(pgid, signal.SIGINT)
+            
+            # 等待进程结束
+            try:
+                self.recording_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                # 如果还没结束，强制杀死
+                os.killpg(pgid, signal.SIGKILL)
+                self.recording_process.wait(timeout=2)
+            
+            self.recording_process = None
+            return {"success": True}
+        except ProcessLookupError:
+            # 进程已经不存在
             self.recording_process = None
             return {"success": True}
         except Exception as e:
             self.recording_process = None
             return {"success": False, "error": str(e)}
     
+    def force_stop(self):
+        """强制停止录制"""
+        if not self.recording_process:
+            return {"success": False, "error": "未在录制中"}
+        
+        try:
+            pgid = os.getpgid(self.recording_process.pid)
+            os.killpg(pgid, signal.SIGKILL)
+            self.recording_process = None
+            return {"success": True}
+        except:
+            self.recording_process = None
+            return {"success": True}
+    
     def is_recording(self):
         """是否正在录制"""
-        return self.recording_process is not None and self.recording_process.poll() is None
+        if not self.recording_process:
+            return False
+        return self.recording_process.poll() is None
     
     def get_bag_info(self, bag_path):
         """获取bag文件信息"""
