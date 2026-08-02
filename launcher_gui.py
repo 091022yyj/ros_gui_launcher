@@ -594,9 +594,9 @@ class MainWindow(QMainWindow):
         # ---- 日志/标签页 (延迟初始化,重量级组件) ----
         self._log_box_placeholder = QWidget()
         self.main_splitter.addWidget(self._log_box_placeholder)
-        self.main_splitter.setStretchFactor(0, 3)
-        self.main_splitter.setStretchFactor(1, 2)
-        self.main_splitter.setSizes([600, 400])
+        self.main_splitter.setStretchFactor(0, 2)
+        self.main_splitter.setStretchFactor(1, 3)
+        self.main_splitter.setSizes([450, 650])
 
         self._main_layout.addWidget(self.main_splitter)
 
