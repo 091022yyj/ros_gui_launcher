@@ -2835,7 +2835,7 @@ class MainWindow(QMainWindow):
             return
         
         password, ok = QInputDialog.getText(self, "添加机器", "密码(可选，用于免密登录):", 
-                                           QLineEdit.Password)
+                                           QLineEdit.EchoMode.Password)
         if not ok:
             password = None
         
