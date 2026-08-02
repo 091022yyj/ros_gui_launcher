@@ -2,9 +2,25 @@
   "ros_setup": "/opt/ros/noetic/setup.bash",
   "ws_setup": "/home/ub/catkin_ws/devel/setup.bash",
   "start_delay": 3,
-  "launch_files": [],
+  "launch_files": [
+    {
+      "path": "/home/ub/catkin_ws/src/wpr_simulation/launch/wpb_rviz.launch",
+      "args": "",
+      "auto_restart": false,
+      "auto_start": false
+    },
+    {
+      "path": "/home/ub/catkin_ws/src/wpr_simulation/launch/wpb_gmapping.launch",
+      "args": "",
+      "auto_restart": false,
+      "auto_start": false
+    }
+  ],
   "py_files": [],
-  "history": [],
+  "history": [
+    "/home/ub/catkin_ws/src/wpr_simulation/launch/wpb_rviz.launch",
+    "/home/ub/catkin_ws/src/wpr_simulation/launch/wpb_gmapping.launch"
+  ],
   "current_scene": "建图",
   "scenes": {},
   "translation_enabled": true,

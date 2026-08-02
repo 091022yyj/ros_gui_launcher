@@ -105,24 +105,46 @@ class MessageRecorder:
         if not self.recording_process:
             return {"success": False, "error": "未在录制中"}
         
+        pid = self.recording_process.pid
+        pgid = None
         try:
-            # 获取进程组ID
-            pgid = os.getpgid(self.recording_process.pid)
-            # 杀死整个进程组
-            os.killpg(pgid, signal.SIGINT)
+            pgid = os.getpgid(pid)
+        except ProcessLookupError:
+            self.recording_process = None
+            return {"success": True}
+        
+        try:
+            # 方式1: 向进程组发送SIGINT（rosbag收到后会正常关闭并写入bag文件）
+            if pgid:
+                os.killpg(pgid, signal.SIGINT)
             
             # 等待进程结束
             try:
                 self.recording_process.wait(timeout=5)
+                self.recording_process = None
+                return {"success": True}
             except subprocess.TimeoutExpired:
-                # 如果还没结束，强制杀死
-                os.killpg(pgid, signal.SIGKILL)
-                self.recording_process.wait(timeout=2)
+                pass
             
-            self.recording_process = None
-            return {"success": True}
-        except ProcessLookupError:
-            # 进程已经不存在
+            # 方式2: 直接发送SIGINT给进程
+            try:
+                os.kill(pid, signal.SIGINT)
+                self.recording_process.wait(timeout=3)
+                self.recording_process = None
+                return {"success": True}
+            except (subprocess.TimeoutExpired, ProcessLookupError):
+                pass
+            
+            # 方式3: 强制杀死
+            try:
+                if pgid:
+                    os.killpg(pgid, signal.SIGKILL)
+                else:
+                    os.kill(pid, signal.SIGKILL)
+                self.recording_process.wait(timeout=2)
+            except Exception:
+                pass
+            
             self.recording_process = None
             return {"success": True}
         except Exception as e:
@@ -147,7 +169,19 @@ class MessageRecorder:
         """是否正在录制"""
         if not self.recording_process:
             return False
-        return self.recording_process.poll() is None
+        # 检查进程是否仍在运行
+        if self.recording_process.poll() is not None:
+            return False
+        # 额外检查：rosbag record 进程是否还在（防止bash假死状态）
+        try:
+            result = subprocess.run(
+                ["pgrep", "-f", "rosbag record"],
+                capture_output=True,
+                text=True
+            )
+            return bool(result.stdout.strip())
+        except Exception:
+            return True
     
     def get_bag_info(self, bag_path):
         """获取bag文件信息"""

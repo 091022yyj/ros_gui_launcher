@@ -27,3 +27,173 @@
 [21:09:01] 发现 0 个插件
 [21:09:04] 发现 0 个插件
 [21:11:29] 录制已开始: bags/recording_20260802_211129.bag
+[22:29:01] 录制已开始: /home/ub/ros_gui_launcher/dist/bags/recording_20260802_222901.bag
+[22:30:18] >>> 启动: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_rviz.launch 
+[22:30:27] === 进程结束: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_rviz.launch
+[22:30:27] <<< 停止: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_rviz.launch
+[22:30:56] >>> 启动: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_gmapping.launch 
+[22:30:57] [wpb_gmapping.launch] [31m[错误 (error)] [1785681057.434748277]: Couldn't open joystick /dev/input/js0. Will retry every second.[0m
+[22:30:59] [wpb_gmapping.launch] 警告 (warning): TF_REPEATED_DATA ignoring data with redundant timestamp for frame odom (parent map) at time 267.084000 according to authority unknown_publisher
+[22:30:59] [wpb_gmapping.launch]          at line 277 in /tmp/binarydeb/ros-noetic-tf2-0.7.10/src/buffer_core.cpp
+[22:30:59] [wpb_gmapping.launch] [33m[WARN] [1785681059.029913552, 267.034000000]: TF_REPEATED_DATA ignoring data with redundant timestamp for frame odom (parent map) at time 267.084000 according to authority unknown_publisher[0m
+[22:31:01] [wpb_gmapping.launch] Laser Pose= -1.34429e-10 1.57666e-10 -8.866e-12
+[22:31:15] >>> 启动: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_rviz.launch 
+[22:31:15] 【/home/ub/catkin_ws/src/wpr_simulation/launch/wpb_rviz.launch】已在运行中
+[22:31:15] [wpb_gmapping.launch] [33m[WARN] [1785681075.962722987, 282.363000000]: Shutdown request received.[0m
+[22:31:15] [wpb_gmapping.launch] [33m[WARN] [1785681075.962755043, 282.363000000]: Reason given for shutdown: [[/rviz] Reason: new node registered with same name][0m
+[22:31:16] [wpb_gmapping.launch] virtual GMapping::GridSlamProcessor::~GridSlamProcessor(): Start
+[22:31:16] [wpb_gmapping.launch] virtual GMapping::GridSlamProcessor::~GridSlamProcessor(): Deleting tree
+[22:31:16] [wpb_gmapping.launch] terminate called after throwing an instance of 'boost::wrapexcept<boost::lock_错误 (error)>'
+[22:31:16] [wpb_gmapping.launch] terminate called recursively
+[22:31:16] [wpb_gmapping.launch]   what():  boost: mutex lock 失败 (failed) in pthread_mutex_lock: 无效 (invalid) argument
+[22:31:23] [wpb_gmapping.launch] Aborted (core dumped)
+[22:31:29] [wpb_gmapping.launch] Killed
+[22:31:30] [wpb_gmapping.launch] [31m================================================================================REQUIRED process [rviz-24] has died!
+[22:31:30] [wpb_gmapping.launch] process has finished cleanly
+[22:31:30] [wpb_gmapping.launch] log file: /home/ub/.ros/log/c627f42c-8e7e-11f1-b2ec-753fc7b71023/rviz-24*.log
+[22:31:30] [wpb_gmapping.launch] Initiating shutdown!
+[22:31:30] [wpb_gmapping.launch] ================================================================================[0m
+[22:31:30] [wpb_gmapping.launch] ... logging to /home/ub/.ros/log/c627f42c-8e7e-11f1-b2ec-753fc7b71023/roslaunch-ub-Legion-R7000P-ADR10-37480.log
+[22:31:30] [wpb_gmapping.launch] Checking log directory for disk usage. This may take a while.
+[22:31:30] [wpb_gmapping.launch] Press Ctrl-C to interrupt
+[22:31:30] [wpb_gmapping.launch] Done checking log file disk usage. Usage is <1GB.
+[22:31:30] [wpb_gmapping.launch] ]2;/home/ub/catkin_ws/src/wpr_simulation/launch/wpb_gmapping.launch
+[22:31:30] [wpb_gmapping.launch] [1mstarted roslaunch server http://ub-Legion-R7000P-ADR10:46485/[0m
+[22:31:30] [wpb_gmapping.launch] 
+[22:31:30] [wpb_gmapping.launch] SUMMARY
+[22:31:30] [wpb_gmapping.launch] ========
+[22:31:30] [wpb_gmapping.launch] 
+[22:31:30] [wpb_gmapping.launch] PARAMETERS
+[22:31:30] [wpb_gmapping.launch]  * /axis_angular: 0
+[22:31:30] [wpb_gmapping.launch]  * /axis_linear: 1
+[22:31:30] [wpb_gmapping.launch]  * /gazebo/enable_ros_network: True
+[22:31:30] [wpb_gmapping.launch]  * /joy_node/deadzone: 0.12
+[22:31:30] [wpb_gmapping.launch]  * /joy_node/dev: /dev/input/js0
+[22:31:30] [wpb_gmapping.launch]  * /robot_description: <?xml version="1....
+[22:31:30] [wpb_gmapping.launch]  * /rosdistro: noetic
+[22:31:30] [wpb_gmapping.launch]  * /rosversion: 1.17.4
+[22:31:30] [wpb_gmapping.launch]  * /scale_angular: 1.0
+[22:31:30] [wpb_gmapping.launch]  * /scale_linear: 0.5
+[22:31:30] [wpb_gmapping.launch]  * /use_sim_time: True
+[22:31:30] [wpb_gmapping.launch] 
+[22:31:30] [wpb_gmapping.launch] NODES
+[22:31:30] [wpb_gmapping.launch]   /
+[22:31:30] [wpb_gmapping.launch]     bed (gazebo_ros/spawn_model)
+[22:31:30] [wpb_gmapping.launch]     bookshelft (gazebo_ros/spawn_model)
+[22:31:30] [wpb_gmapping.launch]     chair_0 (gazebo_ros/spawn_model)
+[22:31:30] [wpb_gmapping.launch]     chair_1 (gazebo_ros/spawn_model)
+[22:31:30] [wpb_gmapping.launch]     chair_2 (gazebo_ros/spawn_model)
+[22:31:30] [wpb_gmapping.launch]     chair_3 (gazebo_ros/spawn_model)
+[22:31:30] [wpb_gmapping.launch]     cupboard_0 (gazebo_ros/spawn_model)
+[22:31:30] [wpb_gmapping.launch]     cupboard_1 (gazebo_ros/spawn_model)
+[22:31:30] [wpb_gmapping.launch]     dinning_table_0 (gazebo_ros/spawn_model)
+[22:31:30] [wpb_gmapping.launch]     dinning_table_1 (gazebo_ros/spawn_model)
+[22:31:30] [wpb_gmapping.launch]     dinning_table_2 (gazebo_ros/spawn_model)
+[22:31:30] [wpb_gmapping.launch]     dinning_table_3 (gazebo_ros/spawn_model)
+[22:31:30] [wpb_gmapping.launch]     gazebo (gazebo_ros/gzserver)
+[22:31:30] [wpb_gmapping.launch]     gazebo_gui (gazebo_ros/gzclient)
+[22:31:30] [wpb_gmapping.launch]     joint_state_publisher (joint_state_publisher/joint_state_publisher)
+[22:31:30] [wpb_gmapping.launch]     joy_node (joy/joy_node)
+[22:31:30] [wpb_gmapping.launch]     kitchen_table (gazebo_ros/spawn_model)
+[22:31:30] [wpb_gmapping.launch]     lidar_filter (wpr_simulation/lidar_filter)
+[22:31:30] [wpb_gmapping.launch]     robot_state_publisher (robot_state_publisher/robot_state_publisher)
+[22:31:30] [wpb_gmapping.launch]     rviz (rviz/rviz)
+[22:31:30] [wpb_gmapping.launch]     slam_gmapping (gmapping/slam_gmapping)
+[22:31:30] [wpb_gmapping.launch]     sofa (gazebo_ros/spawn_model)
+[22:31:30] [wpb_gmapping.launch]     spawn_urdf (gazebo_ros/spawn_model)
+[22:31:30] [wpb_gmapping.launch]     tea_table (gazebo_ros/spawn_model)
+[22:31:30] [wpb_gmapping.launch]     teleop_js_node (wpr_simulation/teleop_js_node)
+[22:31:30] [wpb_gmapping.launch] 
+[22:31:30] [wpb_gmapping.launch] auto-starting new master
+[22:31:30] [wpb_gmapping.launch] [1mprocess[master]: started with pid [37521][0m
+[22:31:30] [wpb_gmapping.launch] [1mROS_MASTER_URI=http://localhost:11311[0m
+[22:31:30] [wpb_gmapping.launch] ]2;/home/ub/catkin_ws/src/wpr_simulation/launch/wpb_gmapping.launch http://localhost:11311
+[22:31:30] [wpb_gmapping.launch] [1msetting /run_id to c627f42c-8e7e-11f1-b2ec-753fc7b71023[0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[rosout-1]: started with pid [37562][0m
+[22:31:30] [wpb_gmapping.launch] started core service [/rosout]
+[22:31:30] [wpb_gmapping.launch] [1mprocess[gazebo-2]: started with pid [37569][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[gazebo_gui-3]: started with pid [37572][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[bed-4]: started with pid [37579][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[sofa-5]: started with pid [37580][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[tea_table-6]: started with pid [37581][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[bookshelft-7]: started with pid [37582][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[kitchen_table-8]: started with pid [37583][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[cupboard_0-9]: started with pid [37584][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[cupboard_1-10]: started with pid [37585][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[dinning_table_0-11]: started with pid [37617][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[dinning_table_1-12]: started with pid [37618][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[dinning_table_2-13]: started with pid [37715][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[dinning_table_3-14]: started with pid [37716][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[chair_0-15]: started with pid [37748][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[chair_1-16]: started with pid [37751][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[chair_2-17]: started with pid [37844][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[chair_3-18]: started with pid [37845][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[spawn_urdf-19]: started with pid [37846][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[robot_state_publisher-20]: started with pid [37847][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[joint_state_publisher-21]: started with pid [37848][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[lidar_filter-22]: started with pid [37850][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[slam_gmapping-23]: started with pid [37855][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[rviz-24]: started with pid [37861][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[joy_node-25]: started with pid [37865][0m
+[22:31:30] [wpb_gmapping.launch] [1mprocess[teleop_js_node-26]: started with pid [37866][0m
+[22:31:30] [wpb_gmapping.launch] [1m[chair_2-17] process has finished cleanly
+[22:31:30] [wpb_gmapping.launch] log file: /home/ub/.ros/log/c627f42c-8e7e-11f1-b2ec-753fc7b71023/chair_2-17*.log[0m
+[22:31:30] [wpb_gmapping.launch] [1m[dinning_table_0-11] process has finished cleanly
+[22:31:30] [wpb_gmapping.launch] log file: /home/ub/.ros/log/c627f42c-8e7e-11f1-b2ec-753fc7b71023/dinning_table_0-11*.log[0m
+[22:31:30] [wpb_gmapping.launch] [1m[bookshelft-7] process has finished cleanly
+[22:31:30] [wpb_gmapping.launch] log file: /home/ub/.ros/log/c627f42c-8e7e-11f1-b2ec-753fc7b71023/bookshelft-7*.log[0m
+[22:31:30] [wpb_gmapping.launch] [1m[spawn_urdf-19] process has finished cleanly
+[22:31:30] [wpb_gmapping.launch] log file: /home/ub/.ros/log/c627f42c-8e7e-11f1-b2ec-753fc7b71023/spawn_urdf-19*.log[0m
+[22:31:30] [wpb_gmapping.launch] [1m[cupboard_0-9] process has finished cleanly
+[22:31:30] [wpb_gmapping.launch] log file: /home/ub/.ros/log/c627f42c-8e7e-11f1-b2ec-753fc7b71023/cupboard_0-9*.log[0m
+[22:31:30] [wpb_gmapping.launch] [1m[chair_0-15] process has finished cleanly
+[22:31:30] [wpb_gmapping.launch] log file: /home/ub/.ros/log/c627f42c-8e7e-11f1-b2ec-753fc7b71023/chair_0-15*.log[0m
+[22:31:30] [wpb_gmapping.launch] [1m[chair_3-18] process has finished cleanly
+[22:31:30] [wpb_gmapping.launch] log file: /home/ub/.ros/log/c627f42c-8e7e-11f1-b2ec-753fc7b71023/chair_3-18*.log[0m
+[22:31:30] [wpb_gmapping.launch] [1m[dinning_table_1-12] process has finished cleanly
+[22:31:30] [wpb_gmapping.launch] log file: /home/ub/.ros/log/c627f42c-8e7e-11f1-b2ec-753fc7b71023/dinning_table_1-12*.log[0m
+[22:31:30] [wpb_gmapping.launch] [1m[dinning_table_2-13] process has finished cleanly
+[22:31:30] [wpb_gmapping.launch] log file: /home/ub/.ros/log/c627f42c-8e7e-11f1-b2ec-753fc7b71023/dinning_table_2-13*.log[0m
+[22:31:30] [wpb_gmapping.launch] [1m[dinning_table_3-14] process has finished cleanly
+[22:31:30] [wpb_gmapping.launch] log file: /home/ub/.ros/log/c627f42c-8e7e-11f1-b2ec-753fc7b71023/dinning_table_3-14*.log[0m
+[22:31:30] [wpb_gmapping.launch] [1m[bed-4] process has finished cleanly
+[22:31:30] [wpb_gmapping.launch] log file: /home/ub/.ros/log/c627f42c-8e7e-11f1-b2ec-753fc7b71023/bed-4*.log[0m
+[22:31:30] [wpb_gmapping.launch] [1m[kitchen_table-8] process has finished cleanly
+[22:31:30] [wpb_gmapping.launch] log file: /home/ub/.ros/log/c627f42c-8e7e-11f1-b2ec-753fc7b71023/kitchen_table-8*.log[0m
+[22:31:30] [wpb_gmapping.launch] [1m[tea_table-6] process has finished cleanly
+[22:31:30] [wpb_gmapping.launch] log file: /home/ub/.ros/log/c627f42c-8e7e-11f1-b2ec-753fc7b71023/tea_table-6*.log[0m
+[22:31:30] [wpb_gmapping.launch] [1m[cupboard_1-10] process has finished cleanly
+[22:31:30] [wpb_gmapping.launch] log file: /home/ub/.ros/log/c627f42c-8e7e-11f1-b2ec-753fc7b71023/cupboard_1-10*.log[0m
+[22:31:30] [wpb_gmapping.launch] [1m[chair_1-16] process has finished cleanly
+[22:31:30] [wpb_gmapping.launch] log file: /home/ub/.ros/log/c627f42c-8e7e-11f1-b2ec-753fc7b71023/chair_1-16*.log[0m
+[22:31:30] [wpb_gmapping.launch] [1m[sofa-5] process has finished cleanly
+[22:31:30] [wpb_gmapping.launch] log file: /home/ub/.ros/log/c627f42c-8e7e-11f1-b2ec-753fc7b71023/sofa-5*.log[0m
+[22:31:30] [wpb_gmapping.launch] [teleop_js_node-26] killing on exit
+[22:31:30] [wpb_gmapping.launch] [joy_node-25] killing on exit
+[22:31:30] [wpb_gmapping.launch] [rviz-24] killing on exit
+[22:31:30] [wpb_gmapping.launch] [slam_gmapping-23] killing on exit
+[22:31:30] [wpb_gmapping.launch] [lidar_filter-22] killing on exit
+[22:31:30] [wpb_gmapping.launch] [joint_state_publisher-21] killing on exit
+[22:31:30] [wpb_gmapping.launch] [robot_state_publisher-20] killing on exit
+[22:31:30] [wpb_gmapping.launch] [gazebo_gui-3] killing on exit
+[22:31:30] [wpb_gmapping.launch] [gazebo-2] killing on exit
+[22:31:30] [wpb_gmapping.launch] [rosout-1] killing on exit
+[22:31:30] [wpb_gmapping.launch] [master] killing on exit
+[22:31:30] [wpb_gmapping.launch] shutting down processing monitor...
+[22:31:30] [wpb_gmapping.launch] ... shutting down processing monitor complete
+[22:31:30] [wpb_gmapping.launch] [1mdone[0m
+[22:31:30] [wpb_gmapping.launch] [进程已退出] 退出码: 0
+[22:31:30] === 进程结束: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_gmapping.launch
+[22:31:33] === 进程结束: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_rviz.launch
+[22:31:33] <<< 停止: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_rviz.launch
+[22:31:33] <<< 停止: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_gmapping.launch
+[22:31:44] 发现 0 个插件
+[22:31:45] 发现 0 个插件
+[22:31:45] 发现 0 个插件
+[22:32:01] >>> 启动: /home/ub/catkin_ws/src/wpr_simulation/launch/wpb_gmapping.launch 
+[22:32:02] [wpb_gmapping.launch] [31m[错误 (error)] [1785681122.439632457]: Couldn't open joystick /dev/input/js0. Will retry every second.[0m
+[22:32:03] [wpb_gmapping.launch] 警告 (warning): TF_REPEATED_DATA ignoring data with redundant timestamp for frame odom (parent map) at time 267.091000 according to authority unknown_publisher
+[22:32:03] [wpb_gmapping.launch]          at line 277 in /tmp/binarydeb/ros-noetic-tf2-0.7.10/src/buffer_core.cpp
+[22:32:03] [wpb_gmapping.launch] [33m[WARN] [1785681123.930731199, 267.042000000]: TF_REPEATED_DATA ignoring data with redundant timestamp for frame odom (parent map) at time 267.091000 according to authority unknown_publisher[0m
+[22:32:07] [wpb_gmapping.launch] Laser Pose= -1.34429e-10 1.57666e-10 -8.866e-12
+[22:33:05] 刷新节点列表: 12 个节点
