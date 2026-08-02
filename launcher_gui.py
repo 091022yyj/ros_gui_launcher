@@ -110,7 +110,7 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
-VERSION = "3.5.5"
+VERSION = "3.6.0"
 
 DEFAULT_CONFIG = {
     "ros_setup": "/opt/ros/noetic/setup.bash",
@@ -1184,7 +1184,46 @@ class MainWindow(QMainWindow):
         sim_widget = QWidget()
         sim_layout = QVBoxLayout(sim_widget)
         
-        sim_group = QGroupBox("Gazebo仿真控制")
+        # Gazebo环境启动
+        gazebo_group = QGroupBox("🚀 Gazebo环境")
+        gazebo_layout = QVBoxLayout(gazebo_group)
+        
+        env_btn_row = QHBoxLayout()
+        self.start_gazebo_btn = QPushButton("▶ 启动Gazebo空世界")
+        self.start_gazebo_btn.clicked.connect(self._start_gazebo)
+        env_btn_row.addWidget(self.start_gazebo_btn)
+        
+        stop_gazebo_btn = QPushButton("⏹ 停止Gazebo")
+        stop_gazebo_btn.clicked.connect(self._stop_gazebo)
+        env_btn_row.addWidget(stop_gazebo_btn)
+        
+        gazebo_status_btn = QPushButton("📡 状态")
+        gazebo_status_btn.clicked.connect(self._refresh_gazebo_status)
+        env_btn_row.addWidget(gazebo_status_btn)
+        
+        env_btn_row.addStretch()
+        gazebo_layout.addLayout(env_btn_row)
+        
+        # 仿真场景预设
+        scene_row = QHBoxLayout()
+        scene_row.addWidget(QLabel("仿真场景:"))
+        self.scene_combo = QComboBox()
+        self.scene_combo.setMinimumWidth(280)
+        scene_row.addWidget(self.scene_combo, 1)
+        start_scene_btn = QPushButton("▶ 启动场景")
+        start_scene_btn.clicked.connect(self._start_scene)
+        scene_row.addWidget(start_scene_btn)
+        gazebo_layout.addLayout(scene_row)
+        
+        # 状态显示
+        self.gazebo_status_label = QLabel("Gazebo: 未运行")
+        self.gazebo_status_label.setStyleSheet("color: #6272a4; padding: 2px;")
+        gazebo_layout.addWidget(self.gazebo_status_label)
+        
+        sim_layout.addWidget(gazebo_group)
+        
+        # Gazebo仿真控制(暂停/继续/重置)
+        sim_group = QGroupBox("🎛 仿真控制")
         sim_inner_layout = QHBoxLayout(sim_group)
         
         pause_sim_btn = QPushButton("暂停仿真")
@@ -1199,28 +1238,48 @@ class MainWindow(QMainWindow):
         reset_sim_btn.clicked.connect(self._reset_simulation)
         sim_inner_layout.addWidget(reset_sim_btn)
         
+        sim_inner_layout.addStretch()
         sim_layout.addWidget(sim_group)
         
         # 模型管理
-        model_group = QGroupBox("模型管理")
+        model_group = QGroupBox("🤖 模型管理")
         model_layout = QVBoxLayout(model_group)
         
         model_btn_layout = QHBoxLayout()
-        spawn_model_btn = QPushButton("生成模型")
-        spawn_model_btn.clicked.connect(self._spawn_model)
+        spawn_model_btn = QPushButton("加载URDF模型")
+        spawn_model_btn.clicked.connect(self._load_urdf_model)
         model_btn_layout.addWidget(spawn_model_btn)
+        
+        spawn_sdf_btn = QPushButton("加载SDF模型")
+        spawn_sdf_btn.clicked.connect(self._load_sdf_model)
+        model_btn_layout.addWidget(spawn_sdf_btn)
         
         delete_model_btn = QPushButton("删除模型")
         delete_model_btn.clicked.connect(self._delete_model)
         model_btn_layout.addWidget(delete_model_btn)
         
+        refresh_models_btn = QPushButton("刷新模型列表")
+        refresh_models_btn.clicked.connect(self._refresh_gazebo_models)
+        model_btn_layout.addWidget(refresh_models_btn)
+        
         model_btn_layout.addStretch()
         model_layout.addLayout(model_btn_layout)
+        
+        self.model_list = QListWidget()
+        model_layout.addWidget(self.model_list)
         
         sim_layout.addWidget(model_group)
         sim_layout.addStretch()
         
         add_page(sim_widget, "🎮 仿真控制")
+        
+        # 加载仿真场景列表
+        try:
+            scenes = self.sim_controller.get_common_scenes()
+            for s in scenes:
+                self.scene_combo.addItem(f"{s['pkg']}/{s['file']}")
+        except Exception:
+            pass
         
         # 日志分析标签页
         analyzer_widget = QWidget()
@@ -3030,35 +3089,171 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "错误", f"重置仿真失败:\n{result['error']}")
         self._run_async_ssh(lambda: self.sim_controller.reset_simulation(), on_done)
 
-    def _spawn_model(self):
-        """生成模型(异步)"""
-        from PyQt5.QtWidgets import QInputDialog
-        
-        model_name, ok = QInputDialog.getText(self, "生成模型", "模型名称:")
-        if not ok or not model_name:
-            return
-        
-        self._status_label.setText(f"生成模型 {model_name} ...")
+    def _start_gazebo(self):
+        """启动Gazebo空世界(异步)"""
         self.sim_controller.set_ros_env(
             self.ros_setup_edit.text().strip(),
             self.ws_setup_edit.text().strip()
         )
+        self._status_label.setText("启动Gazebo中...")
+        self.start_gazebo_btn.setEnabled(False)
+        
+        def on_done(result):
+            self.start_gazebo_btn.setEnabled(True)
+            self._status_label.setText("就绪")
+            if result["success"]:
+                self.log("Gazebo已启动")
+                self.gazebo_status_label.setText("Gazebo: 运行中")
+                self.gazebo_status_label.setStyleSheet("color: #50fa7b; font-weight: bold;")
+                self._refresh_gazebo_models()
+            else:
+                QMessageBox.warning(self, "错误", f"启动Gazebo失败:\n{result['error']}")
+        
+        self._run_async_ssh(lambda: self.sim_controller.start_gazebo(), on_done)
+
+    def _stop_gazebo(self):
+        """停止Gazebo(异步)"""
+        self._status_label.setText("停止Gazebo中...")
+        def on_done(result):
+            self._status_label.setText("就绪")
+            self.gazebo_status_label.setText("Gazebo: 未运行")
+            self.gazebo_status_label.setStyleSheet("color: #6272a4;")
+            self.model_list.clear()
+            self.log("Gazebo已停止")
+        self._run_async_ssh(lambda: self.sim_controller.stop_gazebo(), on_done)
+
+    def _refresh_gazebo_status(self):
+        """刷新Gazebo状态(异步)"""
+        def on_done(result):
+            running = result.get("running", False)
+            if running:
+                self.gazebo_status_label.setText("Gazebo: 运行中")
+                self.gazebo_status_label.setStyleSheet("color: #50fa7b; font-weight: bold;")
+                self._refresh_gazebo_models()
+            else:
+                self.gazebo_status_label.setText("Gazebo: 未运行")
+                self.gazebo_status_label.setStyleSheet("color: #6272a4;")
+        
+        self._run_async_ssh(
+            lambda: {"running": self.sim_controller.is_gazebo_running()},
+            on_done
+        )
+
+    def _start_scene(self):
+        """启动仿真场景(异步)"""
+        text = self.scene_combo.currentText()
+        if not text:
+            QMessageBox.information(self, "提示", "请选择仿真场景")
+            return
+        # 格式: "pkg/file.launch"
+        try:
+            pkg, file = text.split("/", 1)
+        except ValueError:
+            QMessageBox.warning(self, "错误", "场景格式错误")
+            return
+        
+        self.sim_controller.set_ros_env(
+            self.ros_setup_edit.text().strip(),
+            self.ws_setup_edit.text().strip()
+        )
+        self._status_label.setText(f"启动场景 {text} ...")
+        
         def on_done(result):
             self._status_label.setText("就绪")
             if result["success"]:
-                self.log(f"模型已生成: {model_name}")
+                self.log(f"场景已启动: {text}")
+                self.gazebo_status_label.setText("Gazebo: 场景运行中")
+                self.gazebo_status_label.setStyleSheet("color: #50fa7b; font-weight: bold;")
+                self._refresh_gazebo_models()
             else:
-                QMessageBox.warning(self, "错误", f"生成模型失败:\n{result['error']}")
-        self._run_async_ssh(lambda: self.sim_controller.spawn_model(model_name), on_done)
+                QMessageBox.warning(self, "错误", f"启动场景失败:\n{result['error']}")
+        
+        self._run_async_ssh(
+            lambda: self.sim_controller.start_simulation_scene(pkg, file),
+            on_done
+        )
+
+    def _load_urdf_model(self):
+        """加载URDF模型(异步)"""
+        from PyQt5.QtWidgets import QInputDialog
+        path, _ = QFileDialog.getOpenFileName(self, "选择URDF文件",
+                                              os.path.expanduser("~"),
+                                              "URDF文件 (*.urdf)")
+        if not path:
+            return
+        model_name, ok = QInputDialog.getText(self, "模型名称", "模型名称:", text="robot")
+        if not ok or not model_name:
+            return
+        self.sim_controller.set_ros_env(
+            self.ros_setup_edit.text().strip(),
+            self.ws_setup_edit.text().strip()
+        )
+        self._status_label.setText(f"加载URDF模型 {model_name} ...")
+        def on_done(result):
+            self._status_label.setText("就绪")
+            if result["success"]:
+                self.log(f"URDF模型已加载: {model_name}")
+                self._refresh_gazebo_models()
+            else:
+                QMessageBox.warning(self, "错误", f"加载URDF失败:\n{result['error']}")
+        self._run_async_ssh(
+            lambda: self.sim_controller.spawn_urdf_model(path, model_name),
+            on_done
+        )
+
+    def _load_sdf_model(self):
+        """加载SDF模型(异步)"""
+        from PyQt5.QtWidgets import QInputDialog
+        path, _ = QFileDialog.getOpenFileName(self, "选择SDF文件",
+                                              os.path.expanduser("~"),
+                                              "SDF文件 (*.sdf)")
+        if not path:
+            return
+        model_name, ok = QInputDialog.getText(self, "模型名称", "模型名称:", text="robot")
+        if not ok or not model_name:
+            return
+        self.sim_controller.set_ros_env(
+            self.ros_setup_edit.text().strip(),
+            self.ws_setup_edit.text().strip()
+        )
+        self._status_label.setText(f"加载SDF模型 {model_name} ...")
+        def on_done(result):
+            self._status_label.setText("就绪")
+            if result["success"]:
+                self.log(f"SDF模型已加载: {model_name}")
+                self._refresh_gazebo_models()
+            else:
+                QMessageBox.warning(self, "错误", f"加载SDF失败:\n{result['error']}")
+        self._run_async_ssh(
+            lambda: self.sim_controller.spawn_sdf_model(path, model_name),
+            on_done
+        )
+
+    def _refresh_gazebo_models(self):
+        """刷新模型列表(异步)"""
+        self.model_list.clear()
+        self.model_list.addItem("加载中...")
+        def on_done(result):
+            self.model_list.clear()
+            models = result.get("models", [])
+            if not models:
+                self.model_list.addItem("无模型(或Gazebo未运行)")
+            else:
+                for m in models:
+                    self.model_list.addItem(f"🤖 {m}")
+        self._run_async_ssh(lambda: self.sim_controller.get_gazebo_models(), on_done)
 
     def _delete_model(self):
         """删除模型(异步)"""
-        from PyQt5.QtWidgets import QInputDialog
-        
-        model_name, ok = QInputDialog.getText(self, "删除模型", "模型名称:")
-        if not ok or not model_name:
+        item = self.model_list.currentItem()
+        if item and not item.text().startswith("🤖"):
+            QMessageBox.information(self, "提示", "请先在模型列表中选择模型")
             return
-        
+        model_name = item.text().replace("🤖 ", "") if item else ""
+        if not model_name or model_name == "无模型(或Gazebo未运行)":
+            model_name, ok = QInputDialog.getText(self, "删除模型", "模型名称:")
+            if not ok or not model_name:
+                return
         self._status_label.setText(f"删除模型 {model_name} ...")
         self.sim_controller.set_ros_env(
             self.ros_setup_edit.text().strip(),
@@ -3068,6 +3263,7 @@ class MainWindow(QMainWindow):
             self._status_label.setText("就绪")
             if result["success"]:
                 self.log(f"模型已删除: {model_name}")
+                self._refresh_gazebo_models()
             else:
                 QMessageBox.warning(self, "错误", f"删除模型失败:\n{result['error']}")
         self._run_async_ssh(lambda: self.sim_controller.delete_model(model_name), on_done)
