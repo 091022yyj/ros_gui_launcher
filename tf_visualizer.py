@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QGraphicsScene, QGraphicsView, QGraphicsItem, QGraphicsEllipseItem,
     QGraphicsLineItem, QGraphicsTextItem, QMessageBox, QInputDialog,
-    QGroupBox, QSplitter, QTextEdit
+    QGroupBox, QSplitter, QTextEdit, QTreeWidget, QTreeWidgetItem
 )
 
 
@@ -196,28 +196,30 @@ class TFVisualizerWidget(QWidget):
         refresh_btn.clicked.connect(self.refresh_tf_tree)
         toolbar.addWidget(refresh_btn)
         
-        auto_layout_btn = QPushButton("自动布局")
-        auto_layout_btn.clicked.connect(self.auto_layout)
-        toolbar.addWidget(auto_layout_btn)
+        expand_btn = QPushButton("展开全部")
+        expand_btn.clicked.connect(lambda: self.tf_tree.expandAll())
+        toolbar.addWidget(expand_btn)
         
-        zoom_in_btn = QPushButton("放大")
-        zoom_in_btn.clicked.connect(self.zoom_in)
-        toolbar.addWidget(zoom_in_btn)
-        
-        zoom_out_btn = QPushButton("缩小")
-        zoom_out_btn.clicked.connect(self.zoom_out)
-        toolbar.addWidget(zoom_out_btn)
+        collapse_btn = QPushButton("折叠全部")
+        collapse_btn.clicked.connect(lambda: self.tf_tree.collapseAll())
+        toolbar.addWidget(collapse_btn)
         
         toolbar.addStretch()
         
         layout.addLayout(toolbar)
         
-        # 主要内容区
+        # 主要内容区: 标准TF树(左) + 信息面板(右)
         splitter = QSplitter(Qt.Horizontal)
         
-        # 图形视图
-        self.graphics_view = TFGraphicsView()
-        splitter.addWidget(self.graphics_view)
+        # 标准TF树
+        tree_group = QGroupBox("TF坐标系树 (标准树形)")
+        tree_layout = QVBoxLayout(tree_group)
+        self.tf_tree = QTreeWidget()
+        self.tf_tree.setHeaderLabels(["坐标系", "父坐标系", "变换"])
+        self.tf_tree.setAlternatingRowColors(True)
+        self.tf_tree.itemSelectionChanged.connect(self._on_tree_selected)
+        tree_layout.addWidget(self.tf_tree)
+        splitter.addWidget(tree_group)
         
         # 信息面板
         info_group = QGroupBox("TF信息")
@@ -231,8 +233,11 @@ class TFVisualizerWidget(QWidget):
         
         splitter.setSizes([600, 300])
         layout.addWidget(splitter)
+        
+        self._transforms = []  # 保存父子变换(用于信息显示)
+        self._frames_map = {}  # frame -> QTreeWidgetItem
     
-    def _run_command(self, cmd):
+    def _run_command(self, cmd, timeout=10):
         """运行ROS命令"""
         full_cmd = cmd
         if self.source_cmd:
@@ -243,7 +248,7 @@ class TFVisualizerWidget(QWidget):
                 ["bash", "-c", full_cmd],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=timeout
             )
             return result.stdout.strip(), result.stderr.strip(), result.returncode
         except subprocess.TimeoutExpired:
@@ -252,141 +257,137 @@ class TFVisualizerWidget(QWidget):
             return "", str(e), 1
     
     def refresh_tf_tree(self):
-        """刷新TF树"""
-        self.graphics_view.clear_scene()
+        """刷新TF树(异步,快速获取,不卡界面)"""
+        self.tf_tree.clear()
+        self.info_text.setPlainText("加载中...")
         
-        # 获取TF帧
-        frames_result = self._get_tf_frames()
-        if frames_result.get("error"):
-            QMessageBox.warning(self, "错误", f"获取TF帧失败:\n{frames_result['error']}")
-            return
+        def worker():
+            # 用 rostopic echo 快速获取一帧TF消息(约1秒内返回)
+            cmd = "rostopic echo /tf -n 1 2>/dev/null"
+            stdout, stderr, code = self._run_command(cmd, timeout=5)
+            transforms = []
+            if code == 0 and stdout:
+                # 解析 /tf 消息中的父子对
+                lines = stdout.split("\n")
+                cur_parent = None
+                for line in lines:
+                    line = line.strip()
+                    if line.startswith("child_frame_id:"):
+                        child = line.split(":", 1)[-1].strip().strip('"')
+                        if cur_parent:
+                            transforms.append({"parent": cur_parent, "child": child})
+                        cur_parent = None
+                    elif line.startswith("header:") or "frame_id:" in line and "header" not in line:
+                        m = re.search(r'frame_id:\s*"?(\w+)', line)
+                        if m and not line.startswith("header"):
+                            cur_parent = m.group(1)
+            if not transforms:
+                # 备用: 尝试 /tf_static
+                cmd2 = "rostopic echo /tf_static -n 1 2>/dev/null"
+                stdout, _, code2 = self._run_command(cmd2, timeout=4)
+                if code2 == 0 and stdout:
+                    cur_parent = None
+                    for line in stdout.split("\n"):
+                        line = line.strip()
+                        if line.startswith("child_frame_id:"):
+                            child = line.split(":", 1)[-1].strip().strip('"')
+                            if cur_parent:
+                                transforms.append({"parent": cur_parent, "child": child})
+                            cur_parent = None
+                        elif line.startswith("frame_id:"):
+                            m = re.search(r'frame_id:\s*"?(\w+)', line)
+                            if m:
+                                cur_parent = m.group(1)
+            return transforms
+
+        def on_done(transforms):
+            self._transforms = transforms
+            if not transforms:
+                self.info_text.setPlainText(
+                    "未获取到TF数据\n\n请确认:\n1. ROS主节点运行中\n2. 有节点在发布/tf话题")
+                return
+            self._build_tree(transforms)
+            self._update_info(transforms)
         
-        frames = frames_result.get("frames", [])
-        if not frames:
-            self.info_text.setPlainText("未发现TF坐标系")
-            return
+        self._run_bg(worker, on_done)
+
+    def _run_bg(self, fn, on_done=None):
+        """后台线程执行,避免阻塞界面"""
+        import threading
+        from PyQt5.QtCore import QTimer as QtTimer
+
+        def worker():
+            try:
+                result = fn()
+            except Exception as e:
+                result = {"error": str(e)}
+            if on_done:
+                QtTimer.singleShot(0, lambda: on_done(result))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _build_tree(self, transforms):
+        """构建标准TF树"""
+        self.tf_tree.clear()
+        self._frames_map = {}
         
-        # 获取TF关系
-        transforms = self._get_tf_transforms()
-        
-        # 布局坐标系
-        self._layout_frames(frames, transforms)
-        
-        # 更新信息
-        self._update_info(frames, transforms)
-    
-    def _get_tf_frames(self):
-        """获取TF帧"""
-        cmd = "rosrun tf tf_monitor"
-        stdout, stderr, code = self._run_command(cmd)
-        
-        if code != 0:
-            # 尝试备用命令
-            cmd = "rostopic echo /tf -n 1"
-            stdout, stderr, code = self._run_command(cmd)
-            
-            if code != 0:
-                return {"frames": [], "error": stderr}
-        
-        # 解析坐标系
-        frames = set()
-        for line in stdout.split("\n"):
-            match = re.search(r'frame_id:\s*["\']?(\w+)["\']?', line)
-            if match:
-                frames.add(match.group(1))
-            match = re.search(r'child_frame_id:\s*["\']?(\w+)["\']?', line)
-            if match:
-                frames.add(match.group(1))
-        
-        return {"frames": sorted(list(frames)), "error": None}
-    
-    def _get_tf_transforms(self):
-        """获取TF变换关系"""
-        cmd = "rosrun tf tf_monitor -v"
-        stdout, stderr, code = self._run_command(cmd)
-        
-        transforms = []
-        
-        for line in stdout.split("\n"):
-            # 查找变换关系
-            match = re.search(r'(\w+)\s*->\s*(\w+)', line)
-            if match:
-                parent = match.group(1)
-                child = match.group(2)
-                transforms.append({"parent": parent, "child": child})
-        
-        return transforms
-    
-    def _layout_frames(self, frames, transforms):
-        """布局坐标系"""
-        # 构建父子关系
+        # 建立父子关系
         children = {}
         parents = {}
-        
+        all_frames = set()
         for t in transforms:
             parent = t["parent"]
             child = t["child"]
-            
-            if parent not in children:
-                children[parent] = []
-            children[parent].append(child)
-            
+            all_frames.add(parent)
+            all_frames.add(child)
+            children.setdefault(parent, []).append(child)
             parents[child] = parent
         
-        # 找到根节点（没有父节点的）
-        roots = [f for f in frames if f not in parents]
+        # 找根节点(无父节点的)
+        roots = [f for f in all_frames if f not in parents]
         
-        # 如果没有找到根节点，使用第一个帧
-        if not roots and frames:
-            roots = [frames[0]]
+        # 递归构建树
+        def add_items(parent_item, frame):
+            item = QTreeWidgetItem([frame, parents.get(frame, "无")])
+            self._frames_map[frame] = item
+            if parent_item is None:
+                self.tf_tree.addTopLevelItem(item)
+            else:
+                parent_item.addChild(item)
+            for child in children.get(frame, []):
+                add_items(item, child)
         
-        # 布局
-        x_offset = 100
-        y_offset = 100
+        for root in sorted(roots):
+            add_items(None, root)
         
-        def layout_subtree(frame_name, x, y, level=0):
-            """递归布局子树"""
-            frame = self.graphics_view.add_frame(frame_name, x, y)
-            
-            if frame_name in children:
-                child_y_offset = 150
-                for i, child in enumerate(children[frame_name]):
-                    child_x = x + (i - len(children[frame_name]) / 2) * 150
-                    child_y = y + child_y_offset
-                    
-                    self.graphics_view.add_connection(frame_name, child)
-                    layout_subtree(child, child_x, child_y, level + 1)
-        
-        # 布局每个根节点
-        for i, root in enumerate(roots):
-            layout_subtree(root, x_offset + i * 200, y_offset)
-    
-    def auto_layout(self):
-        """自动重新布局"""
-        self.refresh_tf_tree()
-    
-    def zoom_in(self):
-        """放大"""
-        self.graphics_view.scale(1.2, 1.2)
-    
-    def zoom_out(self):
-        """缩小"""
-        self.graphics_view.scale(1.0 / 1.2, 1.0 / 1.2)
-    
-    def _update_info(self, frames, transforms):
+        self.tf_tree.expandAll()
+        # 选中根节点显示信息
+        if self.tf_tree.topLevelItemCount() > 0:
+            self.tf_tree.setCurrentItem(self.tf_tree.topLevelItem(0))
+
+    def _on_tree_selected(self):
+        """选中树节点显示信息"""
+        item = self.tf_tree.currentItem()
+        if not item:
+            return
+        frame = item.text(0)
+        # 找出与该frame相关的变换
+        lines = []
+        for t in self._transforms:
+            if t["parent"] == frame:
+                lines.append(f"{t['parent']} -> {t['child']}")
+            elif t["child"] == frame:
+                lines.append(f"{t['parent']} -> {t['child']}")
+        self.info_text.setPlainText(f"坐标系: {frame}\n父坐标系: {item.text(1)}\n\n相关变换:\n" + "\n".join(lines))
+
+    def _update_info(self, transforms):
         """更新信息面板"""
-        info = []
-        info.append(f"TF坐标系数量: {len(frames)}")
-        info.append(f"TF变换数量: {len(transforms)}")
-        info.append("")
-        info.append("坐标系列表:")
-        for frame in frames:
-            info.append(f"  - {frame}")
-        
-        if transforms:
-            info.append("")
-            info.append("变换关系:")
-            for t in transforms:
-                info.append(f"  {t['parent']} -> {t['child']}")
-        
-        self.info_text.setPlainText("\n".join(info))
+        frames = set()
+        for t in transforms:
+            frames.add(t["parent"])
+            frames.add(t["child"])
+        info = f"TF坐标系总数: {len(frames)}\n"
+        info += f"变换关系数: {len(transforms)}\n\n"
+        info += "坐标系列表:\n" + ", ".join(sorted(frames))
+        self.info_text.setPlainText(info)
+

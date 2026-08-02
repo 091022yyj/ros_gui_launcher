@@ -35,7 +35,7 @@ class TFMonitor:
         self.ws_setup = ws_setup
         self._build_source_cmd()
     
-    def _run_command(self, cmd):
+    def _run_command(self, cmd, timeout=10):
         """运行ROS命令"""
         full_cmd = cmd
         if self.source_cmd:
@@ -46,7 +46,7 @@ class TFMonitor:
                 ["bash", "-c", full_cmd],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=timeout
             )
             return result.stdout.strip(), result.stderr.strip(), result.returncode
         except subprocess.TimeoutExpired:
@@ -114,26 +114,26 @@ class TFMonitor:
         return {"info": info, "error": None}
     
     def get_tf_frames(self):
-        """获取所有TF坐标系"""
-        cmd = "rosrun tf tf_monitor"
-        stdout, stderr, code = self._run_command(cmd)
-        
+        """获取所有TF坐标系(用rostopic快速获取,不用永不退出的tf_monitor)"""
+        cmd = "rostopic echo /tf -n 1 2>/dev/null"
+        stdout, stderr, code = self._run_command(cmd, timeout=5)
         if code != 0:
-            # 尝试备用命令
-            cmd = "rostopic echo /tf -n 1"
-            stdout, stderr, code = self._run_command(cmd)
-            
+            # 备用: 静态TF
+            cmd = "rostopic echo /tf_static -n 1 2>/dev/null"
+            stdout, stderr, code = self._run_command(cmd, timeout=5)
             if code != 0:
-                return {"frames": [], "error": stderr}
-        
+                return {"frames": [], "error": stderr or "未获取到TF数据"}
+
         # 解析坐标系
         frames = set()
         for line in stdout.split("\n"):
-            # 查找frame_id
             match = re.search(r'frame_id:\s*["\']?(\w+)["\']?', line)
             if match:
                 frames.add(match.group(1))
-        
+            match = re.search(r'child_frame_id:\s*["\']?(\w+)["\']?', line)
+            if match:
+                frames.add(match.group(1))
+
         return {"frames": sorted(list(frames)), "error": None}
     
     def get_tf_transform(self, target_frame, source_frame):

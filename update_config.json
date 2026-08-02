@@ -2,7 +2,7 @@
   "update_server": "https://api.github.com",
   "repo_owner": "091022yyj",
   "repo_name": "ros_gui_launcher",
-  "current_version": "3.5.3",
+  "current_version": "3.5.4",
   "check_interval": 3600,
   "auto_update": false
 }
