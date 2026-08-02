@@ -1925,13 +1925,15 @@ class MainWindow(QMainWindow):
         # 设置更新服务器
         self.updater.set_update_server(f"https://api.github.com/repos/{repo_owner}/{repo_name}")
         
-        # 在后台线程中检查更新
-        QTimer.singleShot(100, self._do_check_update)
+        # 在后台线程中检查更新(不阻塞界面)
+        self._run_async_ssh(
+            lambda: self.updater.check_for_updates(),
+            self._on_update_check_done
+        )
 
-    def _do_check_update(self):
-        """执行更新检查"""
+    def _on_update_check_done(self, result):
+        """更新检查完成回调"""
         try:
-            result = self.updater.check_for_updates()
             if result and "tag_name" in result:
                 latest_version = result["tag_name"].lstrip("v")
                 if self.updater.compare_versions(VERSION, latest_version) < 0:
@@ -1943,7 +1945,6 @@ class MainWindow(QMainWindow):
                         QMessageBox.Yes | QMessageBox.No
                     )
                     if reply == QMessageBox.Yes:
-                        # 打开浏览器下载
                         import webbrowser
                         webbrowser.open(result.get("html_url", ""))
                 else:
@@ -2272,38 +2273,40 @@ class MainWindow(QMainWindow):
     # ---------- ROS监控 ----------
 
     def _refresh_ros_master(self):
-        """刷新ROS主节点状态"""
+        """刷新ROS主节点状态(异步)"""
         self.ros_monitor.set_ros_env(
             self.ros_setup_edit.text().strip(),
             self.ws_setup_edit.text().strip()
         )
-        result = self.ros_monitor.check_ros_master()
-        if result["running"]:
-            self.ros_master_status.setText("状态: 运行中 ✓")
-            self.ros_master_status.setStyleSheet("color: #66bb6a; font-weight: bold;")
-        else:
-            self.ros_master_status.setText("状态: 未运行 ✗")
-            self.ros_master_status.setStyleSheet("color: #ef5350; font-weight: bold;")
+        self.ros_master_status.setText("状态: 查询中...")
+        def on_done(result):
+            if result["running"]:
+                self.ros_master_status.setText("状态: 运行中 ✓")
+                self.ros_master_status.setStyleSheet("color: #66bb6a; font-weight: bold;")
+            else:
+                self.ros_master_status.setText("状态: 未运行 ✗")
+                self.ros_master_status.setStyleSheet("color: #ef5350; font-weight: bold;")
+        self._run_async_ssh(lambda: self.ros_monitor.check_ros_master(), on_done)
 
     def _refresh_ros_nodes(self):
-        """刷新ROS节点列表"""
+        """刷新ROS节点列表(异步)"""
         self.ros_monitor.set_ros_env(
             self.ros_setup_edit.text().strip(),
             self.ws_setup_edit.text().strip()
         )
-        result = self.ros_monitor.get_ros_nodes()
         self.node_tree.clear()
-        
-        if result["error"]:
-            item = QTreeWidgetItem(["错误: " + result["error"]])
-            self.node_tree.addTopLevelItem(item)
-            return
-        
-        for node in result["nodes"]:
-            item = QTreeWidgetItem([node, "存活", "", ""])
-            self.node_tree.addTopLevelItem(item)
-        
-        self.log(f"刷新节点列表: {len(result['nodes'])} 个节点")
+        self.node_tree.addTopLevelItem(QTreeWidgetItem(["加载中...", "", "", ""]))
+        def on_done(result):
+            self.node_tree.clear()
+            if result["error"]:
+                item = QTreeWidgetItem(["错误: " + result["error"]])
+                self.node_tree.addTopLevelItem(item)
+                return
+            for node in result["nodes"]:
+                item = QTreeWidgetItem([node, "存活", "", ""])
+                self.node_tree.addTopLevelItem(item)
+            self.log(f"刷新节点列表: {len(result['nodes'])} 个节点")
+        self._run_async_ssh(lambda: self.ros_monitor.get_ros_nodes(), on_done)
 
     def _show_node_info(self):
         """显示节点信息"""
@@ -2335,22 +2338,23 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "节点信息", msg)
 
     def _refresh_ros_topics(self):
-        """刷新ROS Topic列表"""
+        """刷新ROS Topic列表(异步)"""
         self.ros_monitor.set_ros_env(
             self.ros_setup_edit.text().strip(),
             self.ws_setup_edit.text().strip()
         )
-        result = self.ros_monitor.get_ros_topics()
         self.topic_tree.clear()
-        
-        if result["error"]:
-            item = QTreeWidgetItem(["错误: " + result["error"]])
-            self.topic_tree.addTopLevelItem(item)
-            return
-        
-        for topic in result["topics"]:
-            item = QTreeWidgetItem([topic, "", "", ""])
-            self.topic_tree.addTopLevelItem(item)
+        self.topic_tree.addTopLevelItem(QTreeWidgetItem(["加载中...", "", "", ""]))
+        def on_done(result):
+            self.topic_tree.clear()
+            if result["error"]:
+                item = QTreeWidgetItem(["错误: " + result["error"]])
+                self.topic_tree.addTopLevelItem(item)
+                return
+            for topic in result["topics"]:
+                item = QTreeWidgetItem([topic, "", "", ""])
+                self.topic_tree.addTopLevelItem(item)
+        self._run_async_ssh(lambda: self.ros_monitor.get_ros_topics(), on_done)
         
         self.log(f"刷新Topic列表: {len(result['topics'])} 个话题")
 
@@ -2402,62 +2406,70 @@ class MainWindow(QMainWindow):
         self.network_info.setPlainText(info)
 
     def _auto_refresh_ros_monitor(self):
-        """自动刷新ROS监控"""
+        """自动刷新ROS监控(异步,防止定时器阻塞界面)"""
         # 更新ROS环境
         self.ros_monitor.set_ros_env(
             self.ros_setup_edit.text().strip(),
             self.ws_setup_edit.text().strip()
         )
         
-        # 刷新主节点状态
-        result = self.ros_monitor.check_ros_master()
-        if result["running"]:
-            self.ros_master_status.setText("状态: 运行中 ✓")
-            self.ros_master_status.setStyleSheet("color: #66bb6a; font-weight: bold;")
-        else:
-            self.ros_master_status.setText("状态: 未运行 ✗")
-            self.ros_master_status.setStyleSheet("color: #ef5350; font-weight: bold;")
+        def on_done(result):
+            if result.get("running"):
+                self.ros_master_status.setText("状态: 运行中 ✓")
+                self.ros_master_status.setStyleSheet("color: #66bb6a; font-weight: bold;")
+            else:
+                self.ros_master_status.setText("状态: 未运行 ✗")
+                self.ros_master_status.setStyleSheet("color: #ef5350; font-weight: bold;")
+        
+        self._run_async_ssh(
+            lambda: self.ros_monitor.check_ros_master(),
+            on_done
+        )
 
     # ---------- 磁盘监控 ----------
 
     def _refresh_disk(self):
-        """刷新磁盘信息"""
-        result = self.ros_monitor.get_disk_usage()
+        """刷新磁盘信息(异步)"""
         self.disk_tree.clear()
-        
-        if result["error"]:
-            item = QTreeWidgetItem(["错误: " + result["error"]])
-            self.disk_tree.addTopLevelItem(item)
-            return
-        
-        for part in result["partitions"]:
-            if "total" in part:
-                # psutil格式
-                item = QTreeWidgetItem([
-                    part["device"],
-                    part["mountpoint"],
-                    self.ros_monitor._format_size(part["total"]),
-                    self.ros_monitor._format_size(part["used"]),
-                    self.ros_monitor._format_size(part["free"]),
-                    f"{part['percent']}%"
-                ])
-            else:
-                # df格式
-                item = QTreeWidgetItem([
-                    part["device"],
-                    part["mountpoint"],
-                    part.get("size", "N/A"),
-                    part.get("used", "N/A"),
-                    part.get("available", "N/A"),
-                    part.get("percent", "N/A")
-                ])
-            self.disk_tree.addTopLevelItem(item)
+        self.disk_tree.addTopLevelItem(QTreeWidgetItem(["加载中...", "", "", "", "", ""]))
+        def on_done(result):
+            self.disk_tree.clear()
+            if result["error"]:
+                item = QTreeWidgetItem(["错误: " + result["error"]])
+                self.disk_tree.addTopLevelItem(item)
+                return
+            for part in result["partitions"]:
+                if "total" in part:
+                    item = QTreeWidgetItem([
+                        part["device"],
+                        part["mountpoint"],
+                        self.ros_monitor._format_size(part["total"]),
+                        self.ros_monitor._format_size(part["used"]),
+                        self.ros_monitor._format_size(part["free"]),
+                        f"{part['percent']}%"
+                    ])
+                else:
+                    item = QTreeWidgetItem([
+                        part["device"],
+                        part["mountpoint"],
+                        part.get("size", "N/A"),
+                        part.get("used", "N/A"),
+                        part.get("available", "N/A"),
+                        part.get("percent", "N/A")
+                    ])
+                self.disk_tree.addTopLevelItem(item)
+        self._run_async_ssh(lambda: self.ros_monitor.get_disk_usage(), on_done)
 
     def _refresh_log_size(self):
-        """刷新日志目录大小"""
+        """刷新日志目录大小(异步)"""
         log_dir = os.path.join(BASE_DIR, "logs")
-        result = self.ros_monitor.get_log_directory_size(log_dir)
-        self.log_size_label.setText(f"日志目录大小: {result['size_human']}")
+        self.log_size_label.setText("日志目录大小: 计算中...")
+        def on_done(result):
+            self.log_size_label.setText(f"日志目录大小: {result['size_human']}")
+        self._run_async_ssh(
+            lambda: self.ros_monitor.get_log_directory_size(log_dir),
+            on_done
+        )
 
     def _clean_old_logs(self):
         """清理旧日志"""
@@ -2722,76 +2734,91 @@ class MainWindow(QMainWindow):
     # ---------- 仿真控制 ----------
 
     def _pause_simulation(self):
-        """暂停仿真"""
+        """暂停仿真(异步)"""
+        self._status_label.setText("暂停仿真中...")
         self.sim_controller.set_ros_env(
             self.ros_setup_edit.text().strip(),
             self.ws_setup_edit.text().strip()
         )
-        result = self.sim_controller.pause_simulation()
-        if result["success"]:
-            self.log("仿真已暂停")
-        else:
-            QMessageBox.warning(self, "错误", f"暂停仿真失败:\n{result['error']}")
+        def on_done(result):
+            self._status_label.setText("就绪")
+            if result["success"]:
+                self.log("仿真已暂停")
+            else:
+                QMessageBox.warning(self, "错误", f"暂停仿真失败:\n{result['error']}")
+        self._run_async_ssh(lambda: self.sim_controller.pause_simulation(), on_done)
 
     def _unpause_simulation(self):
-        """继续仿真"""
+        """继续仿真(异步)"""
+        self._status_label.setText("继续仿真中...")
         self.sim_controller.set_ros_env(
             self.ros_setup_edit.text().strip(),
             self.ws_setup_edit.text().strip()
         )
-        result = self.sim_controller.unpause_simulation()
-        if result["success"]:
-            self.log("仿真已继续")
-        else:
-            QMessageBox.warning(self, "错误", f"继续仿真失败:\n{result['error']}")
+        def on_done(result):
+            self._status_label.setText("就绪")
+            if result["success"]:
+                self.log("仿真已继续")
+            else:
+                QMessageBox.warning(self, "错误", f"继续仿真失败:\n{result['error']}")
+        self._run_async_ssh(lambda: self.sim_controller.unpause_simulation(), on_done)
 
     def _reset_simulation(self):
-        """重置仿真"""
+        """重置仿真(异步)"""
+        self._status_label.setText("重置仿真中...")
         self.sim_controller.set_ros_env(
             self.ros_setup_edit.text().strip(),
             self.ws_setup_edit.text().strip()
         )
-        result = self.sim_controller.reset_simulation()
-        if result["success"]:
-            self.log("仿真已重置")
-        else:
-            QMessageBox.warning(self, "错误", f"重置仿真失败:\n{result['error']}")
+        def on_done(result):
+            self._status_label.setText("就绪")
+            if result["success"]:
+                self.log("仿真已重置")
+            else:
+                QMessageBox.warning(self, "错误", f"重置仿真失败:\n{result['error']}")
+        self._run_async_ssh(lambda: self.sim_controller.reset_simulation(), on_done)
 
     def _spawn_model(self):
-        """生成模型"""
+        """生成模型(异步)"""
         from PyQt5.QtWidgets import QInputDialog
         
         model_name, ok = QInputDialog.getText(self, "生成模型", "模型名称:")
         if not ok or not model_name:
             return
         
+        self._status_label.setText(f"生成模型 {model_name} ...")
         self.sim_controller.set_ros_env(
             self.ros_setup_edit.text().strip(),
             self.ws_setup_edit.text().strip()
         )
-        result = self.sim_controller.spawn_model(model_name)
-        if result["success"]:
-            self.log(f"模型已生成: {model_name}")
-        else:
-            QMessageBox.warning(self, "错误", f"生成模型失败:\n{result['error']}")
+        def on_done(result):
+            self._status_label.setText("就绪")
+            if result["success"]:
+                self.log(f"模型已生成: {model_name}")
+            else:
+                QMessageBox.warning(self, "错误", f"生成模型失败:\n{result['error']}")
+        self._run_async_ssh(lambda: self.sim_controller.spawn_model(model_name), on_done)
 
     def _delete_model(self):
-        """删除模型"""
+        """删除模型(异步)"""
         from PyQt5.QtWidgets import QInputDialog
         
         model_name, ok = QInputDialog.getText(self, "删除模型", "模型名称:")
         if not ok or not model_name:
             return
         
+        self._status_label.setText(f"删除模型 {model_name} ...")
         self.sim_controller.set_ros_env(
             self.ros_setup_edit.text().strip(),
             self.ws_setup_edit.text().strip()
         )
-        result = self.sim_controller.delete_model(model_name)
-        if result["success"]:
-            self.log(f"模型已删除: {model_name}")
-        else:
-            QMessageBox.warning(self, "错误", f"删除模型失败:\n{result['error']}")
+        def on_done(result):
+            self._status_label.setText("就绪")
+            if result["success"]:
+                self.log(f"模型已删除: {model_name}")
+            else:
+                QMessageBox.warning(self, "错误", f"删除模型失败:\n{result['error']}")
+        self._run_async_ssh(lambda: self.sim_controller.delete_model(model_name), on_done)
 
     # ---------- 日志分析 ----------
 
@@ -2911,20 +2938,41 @@ class MainWindow(QMainWindow):
         else:
             QMessageBox.warning(self, "错误", f"删除机器失败: {machine_name}")
 
+    def _run_async_ssh(self, fn, on_done=None):
+        """在后台线程执行SSH操作,避免卡住界面;完成后回到主线程回调"""
+        import threading
+        def worker():
+            try:
+                result = fn()
+            except Exception as e:
+                result = {"success": False, "error": str(e)}
+            if on_done:
+                QTimer.singleShot(0, lambda: on_done(result))
+        t = threading.Thread(target=worker, daemon=True)
+        t.start()
+
     def _test_machine_connection(self):
-        """测试机器连接"""
+        """测试机器连接(异步,不卡界面)"""
         machine_name = self._get_selected_machine()
         if not machine_name:
             QMessageBox.information(self, "提示", "请先选择一台机器")
             return
         
-        result = self.multi_machine.test_connection(machine_name)
+        # 状态栏提示
+        self._status_label.setText(f"正在测试连接 {machine_name} ...")
         
-        if result["success"]:
-            QMessageBox.information(self, "成功", f"连接成功!")
-            self._refresh_machines()
-        else:
-            QMessageBox.warning(self, "失败", f"连接失败:\n{result['error']}")
+        def on_done(result):
+            self._status_label.setText("就绪")
+            if result["success"]:
+                QMessageBox.information(self, "成功", f"连接 {machine_name} 成功!")
+                self._refresh_machines()
+            else:
+                QMessageBox.warning(self, "失败", f"连接 {machine_name} 失败:\n{result['error']}")
+        
+        self._run_async_ssh(
+            lambda: self.multi_machine.test_connection(machine_name),
+            on_done
+        )
 
     def _setup_machine_key(self):
         """设置SSH密钥"""
@@ -2959,33 +3007,49 @@ class MainWindow(QMainWindow):
     # ---------- ROS远程控制 ----------
 
     def _remote_start_master(self):
-        """远程启动roscore"""
+        """远程启动roscore(异步)"""
         machine_name = self._get_selected_machine()
         if not machine_name:
             QMessageBox.information(self, "提示", "请先选择一台机器")
             return
         
-        result = self.multi_machine.start_ros_master(machine_name)
-        if result["success"]:
-            self.log(f"在 {machine_name} 启动roscore")
-        else:
-            QMessageBox.warning(self, "错误", f"启动roscore失败:\n{result['error']}")
+        self._status_label.setText(f"正在 {machine_name} 启动roscore ...")
+        
+        def on_done(result):
+            self._status_label.setText("就绪")
+            if result["success"]:
+                self.log(f"在 {machine_name} 启动roscore")
+            else:
+                QMessageBox.warning(self, "错误", f"启动roscore失败:\n{result['error']}")
+        
+        self._run_async_ssh(
+            lambda: self.multi_machine.start_ros_master(machine_name),
+            on_done
+        )
 
     def _remote_stop_master(self):
-        """远程停止roscore"""
+        """远程停止roscore(异步)"""
         machine_name = self._get_selected_machine()
         if not machine_name:
             QMessageBox.information(self, "提示", "请先选择一台机器")
             return
         
-        result = self.multi_machine.stop_ros_master(machine_name)
-        if result["success"]:
-            self.log(f"在 {machine_name} 停止roscore")
-        else:
-            QMessageBox.warning(self, "错误", f"停止roscore失败:\n{result['error']}")
+        self._status_label.setText(f"正在停止 {machine_name} roscore ...")
+        
+        def on_done(result):
+            self._status_label.setText("就绪")
+            if result["success"]:
+                self.log(f"在 {machine_name} 停止roscore")
+            else:
+                QMessageBox.warning(self, "错误", f"停止roscore失败:\n{result['error']}")
+        
+        self._run_async_ssh(
+            lambda: self.multi_machine.stop_ros_master(machine_name),
+            on_done
+        )
 
     def _remote_start_launch(self):
-        """远程启动launch文件"""
+        """远程启动launch文件(异步)"""
         machine_name = self._get_selected_machine()
         if not machine_name:
             QMessageBox.information(self, "提示", "请先选择一台机器")
@@ -2996,70 +3060,106 @@ class MainWindow(QMainWindow):
         if not ok or not launch_file:
             return
         
-        result = self.multi_machine.start_launch_file_background(machine_name, launch_file)
-        if result["success"]:
-            self.log(f"在 {machine_name} 启动launch: {launch_file}")
-        else:
-            QMessageBox.warning(self, "错误", f"启动launch失败:\n{result['error']}")
+        self._status_label.setText(f"正在 {machine_name} 启动launch ...")
+        
+        def on_done(result):
+            self._status_label.setText("就绪")
+            if result["success"]:
+                self.log(f"在 {machine_name} 启动launch: {launch_file}")
+            else:
+                QMessageBox.warning(self, "错误", f"启动launch失败:\n{result['error']}")
+        
+        self._run_async_ssh(
+            lambda: self.multi_machine.start_launch_file_background(machine_name, launch_file),
+            on_done
+        )
 
     def _remote_stop_launch(self):
-        """远程停止launch"""
+        """远程停止launch(异步)"""
         machine_name = self._get_selected_machine()
         if not machine_name:
             QMessageBox.information(self, "提示", "请先选择一台机器")
             return
         
-        result = self.multi_machine.stop_launch_process(machine_name)
-        if result["success"]:
-            self.log(f"在 {machine_name} 停止launch")
-        else:
-            QMessageBox.warning(self, "错误", f"停止launch失败:\n{result['error']}")
+        self._status_label.setText(f"正在停止 {machine_name} launch ...")
+        
+        def on_done(result):
+            self._status_label.setText("就绪")
+            if result["success"]:
+                self.log(f"在 {machine_name} 停止launch")
+            else:
+                QMessageBox.warning(self, "错误", f"停止launch失败:\n{result['error']}")
+        
+        self._run_async_ssh(
+            lambda: self.multi_machine.stop_launch_process(machine_name),
+            on_done
+        )
 
     def _refresh_remote_nodes(self):
-        """刷新远程节点列表"""
+        """刷新远程节点列表(异步)"""
         machine_name = self._get_selected_machine()
         if not machine_name:
             return
         
-        result = self.multi_machine.get_ros_nodes(machine_name)
         self.remote_nodes_list.clear()
+        self.remote_nodes_list.addItem("加载中...")
         
-        if result.get("error"):
-            self.remote_nodes_list.addItem(f"错误: {result['error']}")
-        else:
-            for node in result["nodes"]:
-                self.remote_nodes_list.addItem(node)
+        def on_done(result):
+            self.remote_nodes_list.clear()
+            if result.get("error"):
+                self.remote_nodes_list.addItem(f"错误: {result['error']}")
+            else:
+                for node in result["nodes"]:
+                    self.remote_nodes_list.addItem(node)
+        
+        self._run_async_ssh(
+            lambda: self.multi_machine.get_ros_nodes(machine_name),
+            on_done
+        )
 
     def _refresh_remote_topics(self):
-        """刷新远程话题列表"""
+        """刷新远程话题列表(异步)"""
         machine_name = self._get_selected_machine()
         if not machine_name:
             return
         
-        result = self.multi_machine.get_ros_topics(machine_name)
         self.remote_topics_list.clear()
+        self.remote_topics_list.addItem("加载中...")
         
-        if result.get("error"):
-            self.remote_topics_list.addItem(f"错误: {result['error']}")
-        else:
-            for topic in result["topics"]:
-                self.remote_topics_list.addItem(topic)
+        def on_done(result):
+            self.remote_topics_list.clear()
+            if result.get("error"):
+                self.remote_topics_list.addItem(f"错误: {result['error']}")
+            else:
+                for topic in result["topics"]:
+                    self.remote_topics_list.addItem(topic)
+        
+        self._run_async_ssh(
+            lambda: self.multi_machine.get_ros_topics(machine_name),
+            on_done
+        )
 
     def _refresh_robot_status(self):
-        """刷新机器人状态"""
+        """刷新机器人状态(异步)"""
         machine_name = self._get_selected_machine()
         if not machine_name:
             return
         
-        status = self.multi_machine.get_robot_status(machine_name)
+        self.remote_cpu_label.setText("CPU: 查询中...")
         
-        self.remote_cpu_label.setText(f"CPU: {status.get('cpu', '--')}")
-        self.remote_mem_label.setText(f"内存: {status.get('memory', '--')}")
-        self.remote_disk_label.setText(f"磁盘: {status.get('disk', '--')}")
-        self.remote_uptime_label.setText(f"运行时间: {status.get('uptime', '--')}")
+        def on_done(status):
+            self.remote_cpu_label.setText(f"CPU: {status.get('cpu', '--')}")
+            self.remote_mem_label.setText(f"内存: {status.get('memory', '--')}")
+            self.remote_disk_label.setText(f"磁盘: {status.get('disk', '--')}")
+            self.remote_uptime_label.setText(f"运行时间: {status.get('uptime', '--')}")
+        
+        self._run_async_ssh(
+            lambda: self.multi_machine.get_robot_status(machine_name),
+            on_done
+        )
 
     def _execute_remote_command(self):
-        """执行远程命令"""
+        """执行远程命令(异步)"""
         machine_name = self._get_selected_machine()
         if not machine_name:
             QMessageBox.information(self, "提示", "请先选择一台机器")
@@ -3070,13 +3170,21 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "提示", "请输入要执行的命令")
             return
         
-        result = self.multi_machine.execute_remote_command(machine_name, command)
+        self.cmd_output.setPlainText("执行中...")
+        self._status_label.setText(f"正在远程执行: {command}")
         
-        self.cmd_output.clear()
-        if result["success"]:
-            self.cmd_output.setPlainText(result.get("output", ""))
-        else:
-            self.cmd_output.setPlainText(f"错误:\n{result.get('error', '未知错误')}")
+        def on_done(result):
+            self._status_label.setText("就绪")
+            self.cmd_output.clear()
+            if result["success"]:
+                self.cmd_output.setPlainText(result.get("output", ""))
+            else:
+                self.cmd_output.setPlainText(f"错误:\n{result.get('error', '未知错误')}")
+        
+        self._run_async_ssh(
+            lambda: self.multi_machine.execute_remote_command(machine_name, command),
+            on_done
+        )
 
     # ---------- 插件管理 ----------
 
@@ -3123,7 +3231,7 @@ class MainWindow(QMainWindow):
     # ---------- 远程文件浏览器 ----------
 
     def _refresh_remote_files(self):
-        """刷新远程文件列表"""
+        """刷新远程文件列表(异步)"""
         machine_name = self._get_selected_machine()
         if not machine_name:
             return
@@ -3133,67 +3241,74 @@ class MainWindow(QMainWindow):
             current_path = "~"
             self.remote_path_edit.setText(current_path)
         
+        self.remote_dir_tree.clear()
+        self.remote_dir_tree.addTopLevelItem(QTreeWidgetItem(["加载中...", "", "", ""]))
+        
+        def on_done(result):
+            self.remote_dir_tree.clear()
+            
+            if not result["success"]:
+                self.remote_dir_tree.addTopLevelItem(QTreeWidgetItem(["连接失败...", "", "", ""]))
+                return
+            
+            output = result.get("output", "")
+            if output.startswith("ERROR:"):
+                self.remote_dir_tree.addTopLevelItem(QTreeWidgetItem([output, "", "", ""]))
+                return
+            
+            # 解析ls -la输出
+            lines = output.split("\n")
+            for line in lines:
+                if not line.strip() or line.startswith("total"):
+                    continue
+                
+                # 解析文件信息
+                parts = line.split(None, 7)
+                if len(parts) < 9:
+                    continue
+                
+                permissions = parts[0]
+                size = parts[4]
+                date = f"{parts[5]} {parts[6]}"
+                name = parts[8]
+                
+                # 跳过.和..
+                if name in (".", ".."):
+                    continue
+                
+                # 判断类型
+                if permissions.startswith("d"):
+                    file_type = "目录"
+                    name_display = f"📁 {name}"
+                elif permissions.startswith("l"):
+                    file_type = "链接"
+                    name_display = f"🔗 {name}"
+                elif name.endswith(".launch"):
+                    file_type = "Launch文件"
+                    name_display = f"🚀 {name}"
+                elif name.endswith(".py"):
+                    file_type = "Python文件"
+                    name_display = f"🐍 {name}"
+                elif name.endswith((".yaml", ".yml")):
+                    file_type = "YAML文件"
+                    name_display = f"📄 {name}"
+                elif name.endswith((".bag",)):
+                    file_type = "Bag文件"
+                    name_display = f"📦 {name}"
+                else:
+                    file_type = "文件"
+                    name_display = f"📄 {name}"
+                
+                item = QTreeWidgetItem([name_display, size, file_type, date])
+                item.setData(0, Qt.UserRole, name)  # 存储原始文件名
+                self.remote_dir_tree.addTopLevelItem(item)
+        
         # 获取文件列表
         cmd = f"ls -la {current_path} 2>/dev/null || echo 'ERROR:目录不存在'"
-        result = self.multi_machine._run_ssh_command(machine_name, cmd)
-        
-        self.remote_dir_tree.clear()
-        
-        if not result["success"]:
-            self.remote_dir_tree.addTopLevelItem(QTreeWidgetItem(["连接失败...", "", "", ""]))
-            return
-        
-        output = result.get("output", "")
-        if output.startswith("ERROR:"):
-            self.remote_dir_tree.addTopLevelItem(QTreeWidgetItem([output, "", "", ""]))
-            return
-        
-        # 解析ls -la输出
-        lines = output.split("\n")
-        for line in lines:
-            if not line.strip() or line.startswith("total"):
-                continue
-            
-            # 解析文件信息
-            parts = line.split(None, 7)
-            if len(parts) < 9:
-                continue
-            
-            permissions = parts[0]
-            size = parts[4]
-            date = f"{parts[5]} {parts[6]}"
-            name = parts[8]
-            
-            # 跳过.和..
-            if name in (".", ".."):
-                continue
-            
-            # 判断类型
-            if permissions.startswith("d"):
-                file_type = "目录"
-                name_display = f"📁 {name}"
-            elif permissions.startswith("l"):
-                file_type = "链接"
-                name_display = f"🔗 {name}"
-            elif name.endswith(".launch"):
-                file_type = "Launch文件"
-                name_display = f"🚀 {name}"
-            elif name.endswith(".py"):
-                file_type = "Python文件"
-                name_display = f"🐍 {name}"
-            elif name.endswith((".yaml", ".yml")):
-                file_type = "YAML文件"
-                name_display = f"📄 {name}"
-            elif name.endswith((".bag",)):
-                file_type = "Bag文件"
-                name_display = f"📦 {name}"
-            else:
-                file_type = "文件"
-                name_display = f"📄 {name}"
-            
-            item = QTreeWidgetItem([name_display, size, file_type, date])
-            item.setData(0, Qt.UserRole, name)  # 存储原始文件名
-            self.remote_dir_tree.addTopLevelItem(item)
+        self._run_async_ssh(
+            lambda: self.multi_machine._run_ssh_command(machine_name, cmd),
+            on_done
+        )
 
     def _remote_go_home(self):
         """回到主目录"""
@@ -3306,11 +3421,17 @@ class MainWindow(QMainWindow):
                 QMessageBox.Yes
             )
             if reply == QMessageBox.Yes:
-                result = self.multi_machine.start_launch_file_background(machine_name, launch_name)
-                if result["success"]:
-                    self.log(f"在 {machine_name} 启动launch: {launch_name}")
-                else:
-                    QMessageBox.warning(self, "错误", f"启动launch失败:\n{result['error']}")
+                self._status_label.setText(f"正在 {machine_name} 启动launch ...")
+                def on_done_launch(result):
+                    self._status_label.setText("就绪")
+                    if result["success"]:
+                        self.log(f"在 {machine_name} 启动launch: {launch_name}")
+                    else:
+                        QMessageBox.warning(self, "错误", f"启动launch失败:\n{result['error']}")
+                self._run_async_ssh(
+                    lambda: self.multi_machine.start_launch_file_background(machine_name, launch_name),
+                    on_done_launch
+                )
         
         elif file_path.endswith(".py"):
             reply = QMessageBox.question(
@@ -3321,11 +3442,17 @@ class MainWindow(QMainWindow):
             )
             if reply == QMessageBox.Yes:
                 cmd = f"python3 {file_path} &"
-                result = self.multi_machine._run_ssh_command(machine_name, cmd, timeout=5)
-                if result["success"]:
-                    self.log(f"在 {machine_name} 运行: {file_path}")
-                else:
-                    QMessageBox.warning(self, "错误", f"运行Python文件失败:\n{result['error']}")
+                self._status_label.setText(f"正在 {machine_name} 运行 {file_path} ...")
+                def on_done_py(result):
+                    self._status_label.setText("就绪")
+                    if result["success"]:
+                        self.log(f"在 {machine_name} 运行: {file_path}")
+                    else:
+                        QMessageBox.warning(self, "错误", f"运行Python文件失败:\n{result['error']}")
+                self._run_async_ssh(
+                    lambda: self.multi_machine._run_ssh_command(machine_name, cmd, timeout=5),
+                    on_done_py
+                )
 
     def _remote_add_to_launch(self):
         """添加到launch列表"""
@@ -3402,7 +3529,7 @@ class MainWindow(QMainWindow):
         self.log(f"添加远程py: {full_path}")
 
     def _remote_search_files(self):
-        """搜索远程文件"""
+        """搜索远程文件(异步)"""
         machine_name = self._get_selected_machine()
         if not machine_name:
             return
@@ -3414,36 +3541,42 @@ class MainWindow(QMainWindow):
         
         current_path = self.remote_path_edit.text().strip()
         
+        self.remote_dir_tree.clear()
+        self.remote_dir_tree.addTopLevelItem(QTreeWidgetItem(["搜索中...", "", "", ""]))
+        
+        def on_done(result):
+            self.remote_dir_tree.clear()
+            if result["success"] and result["output"]:
+                files = result["output"].split("\n")
+                for file_path in files:
+                    if not file_path.strip():
+                        continue
+                    
+                    name = os.path.basename(file_path)
+                    dir_path = os.path.dirname(file_path)
+                    
+                    if name.endswith(".launch"):
+                        file_type = "Launch文件"
+                        name_display = f"🚀 {name}"
+                    elif name.endswith(".py"):
+                        file_type = "Python文件"
+                        name_display = f"🐍 {name}"
+                    else:
+                        file_type = "文件"
+                        name_display = f"📄 {name}"
+                    
+                    item = QTreeWidgetItem([name_display, "", file_type, dir_path])
+                    item.setData(0, Qt.UserRole, file_path)
+                    self.remote_dir_tree.addTopLevelItem(item)
+            else:
+                self.remote_dir_tree.addTopLevelItem(QTreeWidgetItem(["未找到匹配文件", "", "", ""]))
+        
         # 搜索文件
         cmd = f"find {current_path} -name '*{keyword}*' -type f 2>/dev/null | head -50"
-        result = self.multi_machine._run_ssh_command(machine_name, cmd, timeout=10)
-        
-        self.remote_dir_tree.clear()
-        
-        if result["success"] and result["output"]:
-            files = result["output"].split("\n")
-            for file_path in files:
-                if not file_path.strip():
-                    continue
-                
-                name = os.path.basename(file_path)
-                dir_path = os.path.dirname(file_path)
-                
-                if name.endswith(".launch"):
-                    file_type = "Launch文件"
-                    name_display = f"🚀 {name}"
-                elif name.endswith(".py"):
-                    file_type = "Python文件"
-                    name_display = f"🐍 {name}"
-                else:
-                    file_type = "文件"
-                    name_display = f"📄 {name}"
-                
-                item = QTreeWidgetItem([name_display, "", file_type, dir_path])
-                item.setData(0, Qt.UserRole, file_path)
-                self.remote_dir_tree.addTopLevelItem(item)
-        else:
-            self.remote_dir_tree.addTopLevelItem(QTreeWidgetItem(["未找到匹配文件", "", "", ""]))
+        self._run_async_ssh(
+            lambda: self.multi_machine._run_ssh_command(machine_name, cmd, timeout=10),
+            on_done
+        )
 
 
 def _global_excepthook(exc_type, exc_value, exc_tb):

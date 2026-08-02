@@ -119,10 +119,11 @@ class MultiMachineController:
         ros_setup = machine.get("ros_setup", "source ~/.bashrc")
         full_cmd = f"{ros_setup} && {command}"
         
-        ssh_cmd = f"ssh -o StrictHostKeyChecking=no -p {port} {username}@{hostname} '{full_cmd}'"
+        # ConnectTimeout: 5秒连接超时,避免卡住
+        ssh_cmd = f"ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -p {port} {username}@{hostname} '{full_cmd}'"
         return ssh_cmd
     
-    def _run_ssh_command(self, machine_name, command, use_password=True, timeout=30):
+    def _run_ssh_command(self, machine_name, command, use_password=True, timeout=8):
         """通过SSH运行命令"""
         ssh_cmd = self._build_ssh_command(machine_name, command, use_password)
         if not ssh_cmd:
@@ -142,7 +143,7 @@ class MultiMachineController:
                 "error": result.stderr.strip() if result.returncode != 0 else None
             }
         except subprocess.TimeoutExpired:
-            return {"success": False, "error": "SSH连接超时"}
+            return {"success": False, "error": "连接超时(网络不通或主机未开机)"}
         except Exception as e:
             return {"success": False, "error": str(e)}
     
