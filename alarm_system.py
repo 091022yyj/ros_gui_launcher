@@ -115,15 +115,15 @@ class AlarmSystemWidget(QWidget):
             self.node_edit.setText(", ".join(n for _, n in self.monitored))
 
     def check_all(self):
-        """检查所有监控项"""
+        """检查所有监控项(只跑2次命令,降低开销)"""
         if not self.monitored:
             self.master_label.setText("ROS主节点: 未配置监控")
             return
 
         alarms = []
-        # 检查主节点
-        stdout, _, code = self._run_cmd("rostopic list 2>/dev/null | head -1", timeout=6)
-        master_ok = code == 0 and stdout
+        # 一次命令获取节点列表(同时判断主节点)
+        nodes_stdout, _, _ = self._run_cmd("rosnode list 2>/dev/null", timeout=5)
+        master_ok = bool(nodes_stdout.strip())
         self.master_label.setText(f"ROS主节点: {'✓ 运行中' if master_ok else '✗ 未运行'}")
         self.master_label.setStyleSheet(
             "font-size: 14px; color: #50fa7b;" if master_ok else
@@ -132,24 +132,21 @@ class AlarmSystemWidget(QWidget):
             alarms.append(("ROS主节点", "未运行"))
 
         # 检查节点
-        nodes_ok = []
-        stdout, _, _ = self._run_cmd("rosnode list 2>/dev/null", timeout=6)
-        if stdout:
-            nodes_ok = [n for n in stdout.split("\n") if n.strip()]
+        nodes_ok = [n for n in nodes_stdout.split("\n") if n.strip()] if nodes_stdout else []
         for _, node in self.monitored:
             found = any(node in n for n in nodes_ok)
-            key = ("node", node)
             if not found:
                 alarms.append((node, "进程异常/节点消失"))
                 if self.notifications_enabled:
                     self._notify(f"节点异常: {node}")
 
-        # 检查低电量
-        battery = self._check_battery()
-        if battery is not None and battery < 20:
-            alarms.append(("电池", f"电量低: {battery:.0f}%"))
-            if self.notifications_enabled:
-                self._notify(f"电池电量低: {battery:.0f}%")
+        # 检查低电量(仅当主节点正常时)
+        if master_ok:
+            battery = self._check_battery()
+            if battery is not None and battery < 20:
+                alarms.append(("电池", f"电量低: {battery:.0f}%"))
+                if self.notifications_enabled:
+                    self._notify(f"电池电量低: {battery:.0f}%")
 
         # 更新报警记录
         self.alarm_count_label.setText(f"报警: {len(alarms)}")

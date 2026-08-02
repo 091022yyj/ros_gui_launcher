@@ -115,6 +115,9 @@ class TopicTableWidget(QWidget):
             QMessageBox.information(self, "提示", "请输入话题名称")
             return
         if topic not in self.monitored_topics:
+            if len(self.monitored_topics) >= 5:
+                QMessageBox.information(self, "提示", "最多同时监控5个话题(避免卡顿)")
+                return
             self.monitored_topics.append(topic)
         self._refresh_data()
 

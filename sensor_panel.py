@@ -127,25 +127,52 @@ class SensorPanelWidget(QWidget):
         layout.addStretch()
 
     def refresh_all(self):
-        """刷新所有传感器状态"""
-        # 电池
-        self._refresh_battery()
-        # 话题检测
-        self._check_sensors()
+        """刷新所有传感器状态(只跑1次rostopic list,大幅降低开销)"""
+        stdout, _, code = self._run_cmd("rostopic list 2>/dev/null", timeout=4)
+        topics = set()
+        if code == 0 and stdout:
+            topics = set(t.strip() for t in stdout.split("\n") if t.strip())
+        if not topics:
+            # ROS master未运行
+            for key, label in self.sensor_labels.items():
+                label[0].setText("✗ 未检测到")
+                label[0].setStyleSheet("font-size: 13px; padding: 8px; color: #ff5555;")
+            self.battery_label.setText("ROS未连接")
+            self.battery_bar.setValue(0)
+            self.voltage_label.setText("-- V")
+            self.data_view.setPlainText("无法连接ROS主节点\n\n请确认roscore运行中")
+            return
+        self._check_sensors(topics)
+        self._refresh_battery(topics)
 
-    def _refresh_battery(self):
+    def _refresh_battery(self, topics):
+        """根据话题列表检查电池(纯内存判断,不跑命令)"""
         # 常见电池话题
-        topics = [
+        battery_topics = [
             "/battery_level", "/battery", "/battery_status",
             "/sensor/battery", "/power/battery",
         ]
-        for topic in topics:
-            stdout, _, code = self._run_cmd(f"rostopic echo -n1 {topic} 2>/dev/null", timeout=4)
-            if code == 0 and stdout:
-                self._parse_battery(stdout, topic)
-                return
-        self.battery_label.setText("未检测到电池话题")
-        self.battery_bar.setValue(0)
+        found = None
+        for topic in battery_topics:
+            if topic in topics:
+                found = topic
+                break
+        if not found:
+            # 模糊匹配
+            for t in topics:
+                if "battery" in t.lower():
+                    found = t
+                    break
+        if not found:
+            self.battery_label.setText("未检测到电池话题")
+            self.battery_bar.setValue(0)
+            self.voltage_label.setText("-- V")
+            return
+        # 只对找到的话题取一次数据
+        stdout, _, code = self._run_cmd(f"rostopic echo -n1 {found} 2>/dev/null | head -10",
+                                        timeout=3)
+        if code == 0 and stdout:
+            self._parse_battery(stdout, found)
 
     def _parse_battery(self, data, topic):
         import re
@@ -171,8 +198,8 @@ class SensorPanelWidget(QWidget):
             if m:
                 self.voltage_label.setText(f"{float(m.group(2)):.2f} V")
 
-    def _check_sensors(self):
-        """检查传感器话题是否活跃"""
+    def _check_sensors(self, topics):
+        """根据话题列表检查传感器(纯内存判断,不跑命令)"""
         sensor_topics = {
             "laser": ["/scan", "/laser/scan", "/scan_raw"],
             "imu": ["/imu", "/imu/data", "/imu_data"],
@@ -185,17 +212,22 @@ class SensorPanelWidget(QWidget):
         for key, label in self.sensor_labels.items():
             text = "✗ 未检测到"
             color = "#ff5555"
-            topics = sensor_topics.get(key, [])
-            for topic in topics:
-                stdout, _, code = self._run_cmd(f"rostopic info {topic} 2>/dev/null | head -3", timeout=4)
-                if code == 0 and "Type:" in stdout:
-                    text = f"✓ 正常\n{topic}"
-                    color = "#50fa7b"
-                    mtype = [l for l in stdout.split("\n") if "Type:" in l]
-                    if mtype:
-                        text += f"\n{mtype[0].strip()}"
-                    info_lines.append(f"[{key}] {topic}")
+            found_topic = None
+            candidates = sensor_topics.get(key, [])
+            for topic in candidates:
+                if topic in topics:
+                    found_topic = topic
                     break
+            if not found_topic:
+                # 模糊匹配
+                for t in topics:
+                    if key in t.lower() or (key == "camera" and "image" in t.lower()):
+                        found_topic = t
+                        break
+            if found_topic:
+                text = f"✓ 正常\n{found_topic}"
+                color = "#50fa7b"
+                info_lines.append(f"[{key}] {found_topic}")
             label[0].setText(text)
             label[0].setStyleSheet(f"font-size: 13px; padding: 8px; color: {color};")
             box_style = f"""

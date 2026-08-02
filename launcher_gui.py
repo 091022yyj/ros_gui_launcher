@@ -110,7 +110,7 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
-VERSION = "3.5.1"
+VERSION = "3.5.2"
 
 DEFAULT_CONFIG = {
     "ros_setup": "/opt/ros/noetic/setup.bash",
@@ -2188,22 +2188,32 @@ class MainWindow(QMainWindow):
     # ---------- 系统监控 ----------
 
     def refresh_monitor(self):
-        """刷新系统监控"""
-        try:
-            import psutil
-            # 获取CPU使用率
-            cpu_percent = psutil.cpu_percent(interval=0.1)
-            self.cpu_label.setText(f"CPU: {cpu_percent:.1f}%")
+        """刷新系统监控(异步,psutil放后台线程避免阻塞主界面)"""
+        def worker():
+            try:
+                import psutil
+                cpu = psutil.cpu_percent(interval=0.2)
+                mem = psutil.virtual_memory().percent
+                return {"cpu": cpu, "mem": mem, "ok": True}
+            except ImportError:
+                return {"ok": False, "error": "psutil未安装"}
+            except Exception as e:
+                return {"ok": False, "error": str(e)}
+        
+        def on_done(result):
+            if not result.get("ok"):
+                self.cpu_label.setText("CPU: 获取失败")
+                self.mem_label.setText("内存: 获取失败")
+                return
+            cpu = result["cpu"]
+            mem = result["mem"]
+            self.cpu_label.setText(f"CPU: {cpu:.1f}%")
+            self.mem_label.setText(f"内存: {mem:.1f}%")
             if hasattr(self, 'trend_chart'):
-                self.trend_chart.add_data_point("cpu", cpu_percent)
+                self.trend_chart.add_data_point("cpu", cpu)
+                self.trend_chart.add_data_point("memory", mem)
             
-            # 获取内存使用率
-            mem = psutil.virtual_memory()
-            self.mem_label.setText(f"内存: {mem.percent:.1f}%")
-            if hasattr(self, 'trend_chart'):
-                self.trend_chart.add_data_point("memory", mem.percent)
-            
-            # 获取运行中的进程
+            # 获取运行中的进程(在主线程,轻量)
             running_tasks = []
             for kind in ("launch", "py"):
                 for r, task, _ in self._rows_of(self._table_of(kind)):
@@ -2216,11 +2226,8 @@ class MainWindow(QMainWindow):
                 self.proc_list.setPlainText("\n".join(running_tasks))
             else:
                 self.proc_list.setPlainText("无运行中的进程")
-        except ImportError:
-            self.cpu_label.setText("CPU: psutil未安装")
-            self.mem_label.setText("内存: psutil未安装")
-        except Exception as e:
-            self.log(f"监控刷新失败: {e}")
+        
+        self._run_async_ssh(worker, on_done)
 
 
     # ---------- 历史记录 ----------
