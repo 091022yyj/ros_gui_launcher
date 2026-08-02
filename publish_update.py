@@ -56,7 +56,7 @@ def create_github_release(config, token, version):
     release_data = {
         "tag_name": f"v{version}",
         "name": f"ROS GUI启动器 v{version}",
-        "body": f"## 更新内容\n\n- 版本 {version} 更新\n\n## 下载\n\n下载 `ros_gui_launcher` 可执行文件即可使用。",
+        "body": f"## 更新内容\n\n- 版本 {version} 更新\n\n## 下载\n\n- `ros_gui_launcher` 可执行文件(免安装,直接运行)\n- `ros-gui-launcher_*.deb` deb安装包(Ubuntu/Debian, sudo dpkg -i 安装)",
         "draft": False,
         "prerelease": False
     }
@@ -72,28 +72,36 @@ def create_github_release(config, token, version):
     release_id = release["id"]
     print(f"Release创建成功: {release['html_url']}")
     
-    # 上传文件
+    headers_upload = {
+        "Authorization": f"token {token}",
+        "Content-Type": "application/octet-stream"
+    }
+    
+    # 上传可执行文件
     executable_path = DIST_DIR / "ros_gui_launcher"
-    if not executable_path.exists():
-        print("可执行文件不存在，请先打包")
-        return None
+    if executable_path.exists():
+        print("正在上传可执行文件...")
+        upload_url = f"https://uploads.github.com/repos/{repo_owner}/{repo_name}/releases/{release_id}/assets?name=ros_gui_launcher"
+        with open(executable_path, "rb") as f:
+            response = requests.post(upload_url, data=f, headers=headers_upload)
+        if response.status_code == 201:
+            print("可执行文件上传成功!")
+        else:
+            print(f"可执行文件上传失败: {response.text}")
     
-    print("正在上传更新包...")
-    upload_url = f"https://uploads.github.com/repos/{repo_owner}/{repo_name}/releases/{release_id}/assets?name=ros_gui_launcher"
+    # 上传deb安装包
+    deb_files = list(DIST_DIR.glob("*.deb"))
+    for deb_path in deb_files:
+        print(f"正在上传deb安装包: {deb_path.name} ...")
+        upload_url = f"https://uploads.github.com/repos/{repo_owner}/{repo_name}/releases/{release_id}/assets?name={deb_path.name}"
+        with open(deb_path, "rb") as f:
+            response = requests.post(upload_url, data=f, headers=headers_upload)
+        if response.status_code == 201:
+            print(f"deb包上传成功: {deb_path.name}")
+        else:
+            print(f"deb包上传失败: {deb_path.name} - {response.text}")
     
-    with open(executable_path, "rb") as f:
-        headers_upload = {
-            "Authorization": f"token {token}",
-            "Content-Type": "application/octet-stream"
-        }
-        response = requests.post(upload_url, data=f, headers=headers_upload)
-    
-    if response.status_code == 201:
-        print("上传成功!")
-        return release
-    else:
-        print(f"上传失败: {response.text}")
-        return release
+    return release
 
 def main():
     config = load_config()
