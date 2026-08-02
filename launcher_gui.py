@@ -110,7 +110,7 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
-VERSION = "3.6.2"
+VERSION = "3.6.3"
 
 DEFAULT_CONFIG = {
     "ros_setup": "/opt/ros/noetic/setup.bash",
@@ -1930,8 +1930,19 @@ class MainWindow(QMainWindow):
         self.log(">>> 启动: %s %s" % (task.path, task.args))
         self._add_to_history(task.path)
         task.start(ros_setup, ws_setup, self.on_process_output, self.on_process_finished)
-        if task.is_running():
-            self._set_status(table, path_item, True)
+        # QProcess需要短暂时间进入Running状态,延迟检查避免状态列不更新
+        QTimer.singleShot(400, lambda: self._confirm_started(table, path_item, task))
+
+    def _confirm_started(self, table, path_item, task):
+        """延迟确认任务已启动,更新状态列"""
+        try:
+            if task.is_running():
+                self._set_status(table, path_item, True)
+            else:
+                self.log("!! 进程未能启动: %s" % task.path)
+                self._set_status(table, path_item, False)
+        except RuntimeError:
+            pass  # 窗口已销毁
 
     def stop_row(self, table, path_item):
         if path_item.row() < 0:
