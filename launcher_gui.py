@@ -926,6 +926,10 @@ class MainWindow(QMainWindow):
         add_machine_btn.clicked.connect(self._add_machine)
         machine_btn_layout.addWidget(add_machine_btn)
         
+        remove_machine_btn = QPushButton("删除机器")
+        remove_machine_btn.clicked.connect(self._remove_machine)
+        machine_btn_layout.addWidget(remove_machine_btn)
+        
         test_connection_btn = QPushButton("测试连接")
         test_connection_btn.clicked.connect(self._test_machine_connection)
         machine_btn_layout.addWidget(test_connection_btn)
@@ -2681,6 +2685,29 @@ class MainWindow(QMainWindow):
         self.multi_machine.add_machine(name, hostname, username, port, password, ros_setup)
         self._refresh_machines()
         self.log(f"添加机器: {name}")
+
+    def _remove_machine(self):
+        """删除选中的机器"""
+        machine_name = self._get_selected_machine()
+        if not machine_name:
+            QMessageBox.information(self, "提示", "请先选择一台机器")
+            return
+        
+        reply = QMessageBox.question(
+            self, "删除机器",
+            f"确定要删除机器 [{machine_name}] 吗?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        if reply != QMessageBox.Yes:
+            return
+        
+        result = self.multi_machine.remove_machine(machine_name)
+        if result:
+            self._refresh_machines()
+            self.log(f"删除机器: {machine_name}")
+        else:
+            QMessageBox.warning(self, "错误", f"删除机器失败: {machine_name}")
 
     def _test_machine_connection(self):
         """测试机器连接"""
