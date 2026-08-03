@@ -71,7 +71,8 @@ from PyQt5.QtWidgets import (
 )
 
 
-APP_QSS = """   ROS GUI启动器 - Dracula Dark 主题
+APP_QSS = """/* ============================================================
+   ROS GUI启动器 - Dracula Dark 主题
    设计参考: dracula/dracula-theme (★25k, GitHub最受欢迎主题)
    配色: 深紫底#282a36 + 青色#8be9fd + 绿#50fa7b + 红#ff5555
    ============================================================ */
@@ -80,15 +81,18 @@ APP_QSS = """   ROS GUI启动器 - Dracula Dark 主题
     font-size: 13px;
     outline: none;
 }
+QLabel { color: #f8fafc; }
+QLabel[dim="true"] { color: #94a3b8; }
 QMainWindow, QWidget {
     background-color: #282a36;
     color: #f8f8f2;
     font-size: 13px;
 }
+/* ---- 卡片 ---- */
 QGroupBox {
     background-color: #2f3241;
     border: 1px solid #44475a;
-    border-radius: 10px;
+    border-radius: 14px;
     margin-top: 16px;
     padding-top: 12px;
     font-weight: bold;
@@ -96,11 +100,12 @@ QGroupBox {
 QGroupBox::title {
     subcontrol-origin: margin;
     left: 16px;
-    padding: 0 10px;
+    padding: 2px 12px;
     color: #8be9fd;
     background-color: #2f3241;
     border-radius: 6px;
 }
+/* ---- 按钮 ---- */
 QPushButton {
     background-color: #44475a;
     border: 1px solid #4d5068;
@@ -118,6 +123,7 @@ QPushButton:disabled {
     color: #6b6f88;
     border-color: #3f4252;
 }
+/* 启动/停止按钮 */
 QPushButton#btnStart {
     background-color: #50fa7b;
     border: none;
@@ -138,6 +144,7 @@ QPushButton#btnStop {
 }
 QPushButton#btnStop:hover { background-color: #ff7e7e; }
 QPushButton#btnStop:pressed { background-color: #e64545; }
+/* 全局启动/停止 */
 QPushButton#btnGlobalStart {
     background-color: #50fa7b;
     border: none;
@@ -160,10 +167,11 @@ QPushButton#btnGlobalStop {
 }
 QPushButton#btnGlobalStop:hover { background-color: #ff7e7e; }
 QPushButton#btnGlobalStop:pressed { background-color: #e64545; }
+/* ---- 输入框 ---- */
 QLineEdit {
     background-color: #21222c;
     border: 1px solid #44475a;
-    border-radius: 6px;
+    border-radius: 8px;
     padding: 7px 10px;
     color: #f8f8f2;
     selection-background-color: #bd93f9;
@@ -182,12 +190,13 @@ QSpinBox {
     color: #f8f8f2;
 }
 QSpinBox:focus { border-color: #8be9fd; }
+/* ---- 表格 ---- */
 QTableWidget {
     background-color: #232530;
     alternate-background-color: #282a38;
     gridline-color: #383b4d;
     border: 1px solid #44475a;
-    border-radius: 8px;
+    border-radius: 10px;
     selection-background-color: #bd93f9;
     selection-color: #282a36;
 }
@@ -210,6 +219,7 @@ QHeaderView::section {
     font-weight: bold;
 }
 QTableCornerButton::section { background-color: #343746; }
+/* ---- 文本框 ---- */
 QPlainTextEdit {
     background-color: #1e1f29;
     border: 1px solid #44475a;
@@ -222,6 +232,7 @@ QPlainTextEdit {
     selection-color: #282a36;
 }
 QPlainTextEdit:focus { border-color: #8be9fd; }
+/* ---- 滚动条 ---- */
 QScrollBar:vertical {
     background: transparent;
     width: 10px;
@@ -246,13 +257,15 @@ QScrollBar::handle:horizontal {
 }
 QScrollBar::handle:horizontal:hover { background: #6272a4; }
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
+/* ---- 提示 ---- */
 QToolTip {
     background-color: #44475a;
     color: #f8f8f2;
     border: 1px solid #6272a4;
-    border-radius: 4px;
+    border-radius: 6px;
     padding: 6px 10px;
 }
+/* ---- 列表 ---- */
 QListWidget {
     background-color: #1e1f29;
     border: 1px solid #44475a;
@@ -265,15 +278,17 @@ QListWidget::item:selected {
     color: #282a36;
 }
 QListWidget::item:hover { background-color: #343746; }
+/* ---- 分割器 ---- */
 QSplitter::handle {
     background-color: #343746;
 }
 QSplitter::handle:hover { background-color: #8be9fd; }
 QSplitter::handle:vertical { height: 4px; }
 QSplitter::handle:horizontal { width: 4px; }
+/* ---- 标签页 ---- */
 QTabWidget::pane {
     border: 1px solid #44475a;
-    border-radius: 8px;
+    border-radius: 10px;
     top: -1px;
     background-color: #282a36;
 }
@@ -284,8 +299,8 @@ QTabBar::tab {
     border-bottom: none;
     padding: 9px 20px;
     margin-right: 3px;
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
 }
 QTabBar::tab:hover { background-color: #44475a; color: #f8f8f2; }
 QTabBar::tab:selected {
@@ -294,10 +309,11 @@ QTabBar::tab:selected {
     font-weight: bold;
     border-bottom: 2px solid #8be9fd;
 }
+/* ---- 下拉框 ---- */
 QComboBox {
     background-color: #21222c;
     border: 1px solid #44475a;
-    border-radius: 6px;
+    border-radius: 8px;
     padding: 7px 12px;
     color: #f8f8f2;
 }
@@ -312,10 +328,11 @@ QComboBox QAbstractItemView {
     outline: none;
     padding: 4px;
 }
+/* ---- 进度条 ---- */
 QProgressBar {
     background-color: #21222c;
     border: 1px solid #44475a;
-    border-radius: 5px;
+    border-radius: 6px;
     text-align: center;
     color: #6272a4;
     font-size: 11px;
@@ -324,6 +341,7 @@ QProgressBar::chunk {
     background-color: #8be9fd;
     border-radius: 4px;
 }
+/* ---- 树形控件 ---- */
 QTreeWidget {
     background-color: #232530;
     alternate-background-color: #282a38;
@@ -335,6 +353,7 @@ QTreeWidget::item { padding: 6px; border-radius: 4px; }
 QTreeWidget::item:selected { background-color: #bd93f9; color: #282a36; }
 QTreeWidget::item:hover { background-color: #343746; }
 QTreeWidget::branch { background: transparent; }
+/* ---- 状态栏 ---- */
 QStatusBar {
     background-color: #21222c;
     color: #6272a4;
@@ -342,6 +361,7 @@ QStatusBar {
 }
 QStatusBar::item { border: none; }
 QStatusBar QLabel { color: #6272a4; padding: 0 8px; }
+/* ---- 菜单 ---- */
 QMenuBar {
     background-color: #282a36;
     color: #f8f8f2;
@@ -356,11 +376,12 @@ QMenu {
 }
 QMenu::item { padding: 6px 24px; border-radius: 4px; }
 QMenu::item:selected { background-color: #bd93f9; color: #282a36; }
+/* ---- 复选框 ---- */
 QCheckBox { spacing: 6px; }
 QCheckBox::indicator {
     width: 17px;
     height: 17px;
-    border-radius: 4px;
+    border-radius: 5px;
     border: 1px solid #6272a4;
     background-color: #21222c;
 }
@@ -369,12 +390,14 @@ QCheckBox::indicator:checked {
     background-color: #8be9fd;
     border-color: #8be9fd;
 }
+/* ---- Dock ---- */
 QDockWidget { color: #f8f8f2; font-weight: bold; }
 QDockWidget::title {
     background-color: #2f3241;
     padding: 6px;
     border: 1px solid #44475a;
 }
+/* ---- 左侧导航栏 ---- */
 QListWidget#navList {
     background-color: #21222c;
     border: none;
@@ -399,7 +422,8 @@ QListWidget#navList::item:selected {
     color: #8be9fd;
     font-weight: bold;
     border-left: 3px solid #8be9fd;
-}"""
+}
+"""
 
 
 from process_row import ProcessRow
@@ -452,15 +476,18 @@ class MainWindow(QMainWindow, TasksMixin, ConfigMixin, MonitorMixin, SimulationM
         self._main_layout = QVBoxLayout(central)
 
         # ---- 全局操作 (轻量级,立即初始化) ----
+        from ui_anim import add_press_effect
         global_row = QHBoxLayout()
         start_everything = QPushButton("▶  一键启动所有任务")
         start_everything.setObjectName("btnGlobalStart")
         start_everything.setMinimumHeight(46)
         start_everything.clicked.connect(self.start_everything)
+        add_press_effect(start_everything)
         stop_everything = QPushButton("■  停止所有任务")
         stop_everything.setObjectName("btnGlobalStop")
         stop_everything.setMinimumHeight(46)
         stop_everything.clicked.connect(self.stop_everything)
+        add_press_effect(stop_everything)
         global_row.addWidget(start_everything)
         global_row.addWidget(stop_everything)
         global_row.addStretch(1)
