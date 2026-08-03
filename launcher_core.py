@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QMainWindow, QApplication
+from PyQt6.QtWidgets import QMainWindow, QApplication
 from process_manager import ProcessManager
 from config_manager import ConfigManager
 from monitor import ProcessMonitor

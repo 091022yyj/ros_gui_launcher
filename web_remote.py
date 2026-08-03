@@ -11,7 +11,7 @@ import os
 import signal
 import subprocess
 import webbrowser
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
                              QLabel, QPushButton, QMessageBox)
 from ros_widget_base import ROSWidget
 

@@ -6,8 +6,8 @@
 - 面板淡入
 - 缓动曲线
 """
-from PyQt5.QtCore import QPropertyAnimation, QEasingCurve
-from PyQt5.QtWidgets import QGraphicsOpacityEffect
+from PyQt6.QtCore import QPropertyAnimation, QEasingCurve
+from PyQt6.QtWidgets import QGraphicsOpacityEffect
 
 
 def add_press_effect(button, pressed_opacity=0.7, duration=100):

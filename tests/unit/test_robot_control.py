@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch
-from PyQt5.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication
 from robot_control import RobotControlWidget
 
 

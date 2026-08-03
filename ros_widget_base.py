@@ -8,7 +8,7 @@ ROS功能组件公共基类
 - 消除各widget重复代码
 """
 import os
-from PyQt5.QtWidgets import QWidget
+from PyQt6.QtWidgets import QWidget
 from env_cache import run_cmd
 from async_helper import run_async
 

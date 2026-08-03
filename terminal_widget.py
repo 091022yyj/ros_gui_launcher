@@ -8,9 +8,9 @@
 """
 import os
 import signal
-from PyQt5.QtCore import Qt, QProcess, QTimer
-from PyQt5.QtGui import QColor, QFont
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import Qt, QProcess, QTimer
+from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QLineEdit, QPlainTextEdit, QComboBox, QGroupBox, QSplitter,
 )

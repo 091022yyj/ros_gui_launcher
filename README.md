@@ -1,4 +1,4 @@
-# ROS GUI 启动器 v3.6.11
+# ROS GUI 启动器 v4.0.0
 
 一个功能强大的ROS一键启动工具，支持launch文件和Python脚本的管理与启动。
 

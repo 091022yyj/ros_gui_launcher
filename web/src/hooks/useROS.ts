@@ -26,6 +26,21 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+/** 等待后端就绪(Tauri已自动启动后端,等待其启动完成) */
+export async function waitForBackend(maxWaitMs = 10000): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
+    try {
+      const res = await fetch(`${API}/api/health`, { signal: AbortSignal.timeout(1500) });
+      if (res.ok) return true;
+    } catch {
+      // 后端还没就绪,继续等待
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return false;
+}
+
 export const api = {
   health: () => request<{ status: string; version: string }>("/api/health"),
 

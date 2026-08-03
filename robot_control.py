@@ -7,9 +7,9 @@
 - 紧急停止
 """
 import os
-from PyQt5.QtCore import Qt, QTimer, QRectF
-from PyQt5.QtGui import QColor, QPen, QPainter, QFont
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
+from PyQt6.QtCore import Qt, QTimer, QRectF
+from PyQt6.QtGui import QColor, QPen, QPainter, QFont
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
                              QLabel, QPushButton, QSlider, QMessageBox,
                              QInputDialog)
 from ros_widget_base import ROSWidget
@@ -39,13 +39,13 @@ class SpeedGauge(QWidget):
         r = min(w, h) // 2 - 15
 
         # 背景
-        painter.setPen(Qt.NoPen)
+        painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor("#1e1f29"))
         painter.drawRoundedRect(0, 0, w, h, 10, 10)
 
         # 表盘弧
         pen = QPen(QColor("#44475a"), 8)
-        pen.setCapStyle(Qt.RoundCap)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         painter.setPen(pen)
         painter.drawArc(QRectF(cx - r, cy - r, 2 * r, 2 * r), 0, 180 * 16)
 
@@ -54,7 +54,7 @@ class SpeedGauge(QWidget):
         angle = ratio * 180
         color = QColor("#50fa7b") if abs(self.value) < self.max_value * 0.6 else QColor("#ff5555")
         pen2 = QPen(color, 8)
-        pen2.setCapStyle(Qt.RoundCap)
+        pen2.setCapStyle(Qt.PenCapStyle.RoundCap)
         painter.setPen(pen2)
         start_angle = 180 * 16
         span = -int(angle * 16)
@@ -65,7 +65,7 @@ class SpeedGauge(QWidget):
         font = QFont()
         font.setPointSize(10)
         painter.setFont(font)
-        painter.drawText(QRectF(0, 8, w, 20), Qt.AlignCenter, self.title)
+        painter.drawText(QRectF(0, 8, w, 20), Qt.AlignmentFlag.AlignCenter, self.title)
 
         # 数值
         painter.setPen(QColor("#f8f8f2"))
@@ -73,7 +73,7 @@ class SpeedGauge(QWidget):
         font2.setPointSize(22)
         font2.setBold(True)
         painter.setFont(font2)
-        painter.drawText(QRectF(0, cy - r + 30, w, 40), Qt.AlignCenter,
+        painter.drawText(QRectF(0, cy - r + 30, w, 40), Qt.AlignmentFlag.AlignCenter,
                          f"{self.value:.2f}")
 
         # 单位
@@ -81,7 +81,7 @@ class SpeedGauge(QWidget):
         font3 = QFont()
         font3.setPointSize(9)
         painter.setFont(font3)
-        painter.drawText(QRectF(0, cy + 20, w, 20), Qt.AlignCenter, "m/s")
+        painter.drawText(QRectF(0, cy + 20, w, 20), Qt.AlignmentFlag.AlignCenter, "m/s")
         painter.end()
 
 
@@ -97,7 +97,7 @@ class RobotControlWidget(ROSWidget):
         self.angular = 0.0
         self._build_source_cmd()
         self._init_ui()
-        self.setFocusPolicy(Qt.StrongFocus)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
 
     def _init_ui(self):
@@ -124,7 +124,7 @@ class RobotControlWidget(ROSWidget):
         speed_layout = QVBoxLayout(speed_group)
         speed_row = QHBoxLayout()
         speed_row.addWidget(QLabel("线速度上限:"))
-        self.linear_slider = QSlider(Qt.Horizontal)
+        self.linear_slider = QSlider(Qt.Orientation.Horizontal)
         self.linear_slider.setRange(5, 100)
         self.linear_slider.setValue(30)
         self.linear_slider.valueChanged.connect(
@@ -136,7 +136,7 @@ class RobotControlWidget(ROSWidget):
 
         ang_row = QHBoxLayout()
         ang_row.addWidget(QLabel("角速度上限:"))
-        self.angular_slider = QSlider(Qt.Horizontal)
+        self.angular_slider = QSlider(Qt.Orientation.Horizontal)
         self.angular_slider.setRange(10, 300)
         self.angular_slider.setValue(100)
         self.angular_slider.valueChanged.connect(

@@ -15,14 +15,14 @@ import traceback
 from constants import (BASE_DIR, CONFIG_FILE, LOG_DIR, VERSION, DEFAULT_CONFIG,
                       MAX_RESTARTS, COL_STATUS, COL_PATH, COL_ARGS, COL_RESTART,
                       COL_AUTOSTART, COL_OPS, normalize_task)
-from PyQt5.QtCore import Qt, QProcess, QTimer, QRectF
-from PyQt5.QtGui import QColor, QKeySequence
-from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
+from PyQt6.QtCore import Qt, QProcess, QTimer, QRectF
+from PyQt6.QtGui import QColor, QShortcut, QKeySequence
+from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QLineEdit, QFileDialog,
                              QGroupBox, QPlainTextEdit, QTableWidget,
                              QTableWidgetItem, QAbstractItemView, QMessageBox,
                              QHeaderView, QSpinBox, QListWidgetItem, QComboBox,
-                             QShortcut, QInputDialog, QTreeWidgetItem)
+                            QInputDialog, QTreeWidgetItem)
 
 
 class TasksMixin:
@@ -35,7 +35,7 @@ class TasksMixin:
         table = QTableWidget(0, 6)
         table.setHorizontalHeaderLabels(
             ["状态", "文件路径", "启动参数", "崩溃重启", "自启动", "操作"])
-        table.horizontalHeader().setSectionResizeMode(COL_PATH, QHeaderView.Stretch)
+        table.horizontalHeader().setSectionResizeMode(COL_PATH, QHeaderView.ResizeMode.Stretch)
         table.setColumnWidth(COL_STATUS, 90)
         table.setColumnWidth(COL_RESTART, 70)
         table.setColumnWidth(COL_AUTOSTART, 70)
@@ -44,8 +44,8 @@ class TasksMixin:
         table.setAlternatingRowColors(True)
         table.verticalHeader().setVisible(False)
         table.verticalHeader().setDefaultSectionSize(42)
-        table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        table.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         table.itemChanged.connect(
             lambda item, k=kind: self.on_item_changed(k, item))
         layout.addWidget(table)
@@ -94,14 +94,14 @@ class TasksMixin:
 
         status_item = QTableWidgetItem("● 已停止")
         status_item.setForeground(QColor("#80868b"))
-        status_item.setTextAlignment(Qt.AlignCenter)
-        status_item.setFlags(status_item.flags() & ~Qt.ItemIsEditable)
+        status_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        status_item.setFlags(status_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
         table.setItem(row, COL_STATUS, status_item)
 
         path_item = QTableWidgetItem(task.path)
-        path_item.setData(Qt.UserRole, task)
+        path_item.setData(Qt.ItemDataRole.UserRole, task)
         path_item.setToolTip(task.path)
-        path_item.setFlags(path_item.flags() & ~Qt.ItemIsEditable)
+        path_item.setFlags(path_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
         table.setItem(row, COL_PATH, path_item)
 
         args_item = QTableWidgetItem(task.args)
@@ -109,15 +109,15 @@ class TasksMixin:
         table.setItem(row, COL_ARGS, args_item)
 
         restart_item = QTableWidgetItem("")
-        restart_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
-        restart_item.setCheckState(Qt.Checked if task.auto_restart else Qt.Unchecked)
-        restart_item.setTextAlignment(Qt.AlignCenter)
+        restart_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
+        restart_item.setCheckState(Qt.CheckState.Checked if task.auto_restart else Qt.CheckState.Unchecked)
+        restart_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         table.setItem(row, COL_RESTART, restart_item)
 
         autostart_item = QTableWidgetItem("")
-        autostart_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
-        autostart_item.setCheckState(Qt.Checked if task.auto_start else Qt.Unchecked)
-        autostart_item.setTextAlignment(Qt.AlignCenter)
+        autostart_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
+        autostart_item.setCheckState(Qt.CheckState.Checked if task.auto_start else Qt.CheckState.Unchecked)
+        autostart_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         table.setItem(row, COL_AUTOSTART, autostart_item)
 
         op_widget = QWidget()
@@ -145,13 +145,13 @@ class TasksMixin:
         path_item = table.item(item.row(), COL_PATH)
         if not path_item:
             return
-        task = path_item.data(Qt.UserRole)
+        task = path_item.data(Qt.ItemDataRole.UserRole)
         if item.column() == COL_ARGS:
             task.args = item.text().strip()
         elif item.column() == COL_RESTART:
-            task.auto_restart = item.checkState() == Qt.Checked
+            task.auto_restart = item.checkState() == Qt.CheckState.Checked
         elif item.column() == COL_AUTOSTART:
-            task.auto_start = item.checkState() == Qt.Checked
+            task.auto_start = item.checkState() == Qt.CheckState.Checked
         else:
             return
         self.save_config()
@@ -164,7 +164,7 @@ class TasksMixin:
         for r in rows:
             item = table.item(r, COL_PATH)
             if item:
-                yield r, item.data(Qt.UserRole), item
+                yield r, item.data(Qt.ItemDataRole.UserRole), item
 
     def _table_of(self, kind):
         return self.launch_table if kind == "launch" else self.py_table
@@ -235,7 +235,7 @@ class TasksMixin:
 
     def refresh_row_existence(self, table, path_item, cache=None):
         """文件不存在时路径标红"""
-        task = path_item.data(Qt.UserRole)
+        task = path_item.data(Qt.ItemDataRole.UserRole)
         if not task.is_running() and not task.exists(cache):
             path_item.setForeground(QColor("#ef5350"))
             path_item.setToolTip(task.path + "\n⚠ 文件不存在!")
@@ -253,7 +253,7 @@ class TasksMixin:
     def start_row(self, table, path_item):
         if path_item.row() < 0:
             return  # 行已被移除
-        task = path_item.data(Qt.UserRole)
+        task = path_item.data(Qt.ItemDataRole.UserRole)
         if task.is_running():
             self.log("【%s】已在运行中" % task.path)
             return
@@ -289,7 +289,7 @@ class TasksMixin:
     def stop_row(self, table, path_item):
         if path_item.row() < 0:
             return
-        task = path_item.data(Qt.UserRole)
+        task = path_item.data(Qt.ItemDataRole.UserRole)
         task.stop()
         self.log("<<< 停止: %s" % task.path)
         self._set_status(table, path_item, False)
@@ -380,7 +380,7 @@ class TasksMixin:
         for r in rows:
             item = table.item(r, COL_PATH)
             if item:
-                item.data(Qt.UserRole).stop()
+                item.data(Qt.ItemDataRole.UserRole).stop()
             table.removeRow(r)
         if rows:
             self.save_config()

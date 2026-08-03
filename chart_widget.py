@@ -6,9 +6,9 @@
 - 支持多序列数据(CPU/内存等)
 - 渐变填充 + 网格线 + 当前值显示
 """
-from PyQt5.QtCore import Qt, QRectF
-from PyQt5.QtGui import QColor, QPen, QPainter, QPainterPath, QFont, QLinearGradient
-from PyQt5.QtWidgets import QWidget
+from PyQt6.QtCore import Qt, QRectF
+from PyQt6.QtGui import QColor, QPen, QPainter, QPainterPath, QFont, QLinearGradient
+from PyQt6.QtWidgets import QWidget
 from collections import deque
 
 
@@ -51,7 +51,7 @@ class TrendChartWidget(QWidget):
         margin = 8
 
         # 背景
-        painter.setPen(Qt.NoPen)
+        painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor("#1e1f29"))
         painter.drawRoundedRect(0, 0, w, h, 8, 8)
 
@@ -66,7 +66,7 @@ class TrendChartWidget(QWidget):
         # 网格线(水平虚线) + Y轴刻度
         grid_color = QColor("#33363f")
         grid_pen = QPen(grid_color, 1)
-        grid_pen.setStyle(Qt.DashLine)
+        grid_pen.setStyle(Qt.PenStyle.DashLine)
 
         y_label_font = QFont()
         y_label_font.setPointSize(8)
@@ -82,7 +82,7 @@ class TrendChartWidget(QWidget):
             painter.setPen(QColor("#6272a4"))
             painter.drawText(
                 QRectF(margin, y - 8, 28, 16),
-                Qt.AlignRight | Qt.AlignVCenter,
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
                 f"{value:.0f}%"
             )
 
@@ -136,14 +136,14 @@ class TrendChartWidget(QWidget):
 
             painter.setBrush(Qt.NoBrush)
             pen = QPen(color, 2)
-            pen.setJoinStyle(Qt.RoundJoin)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             painter.setPen(pen)
             painter.drawPath(line_path)
 
             # 最后一个点画圆
             last_x, last_y = points[-1]
             painter.setBrush(color)
-            painter.setPen(Qt.NoPen)
+            painter.setPen(Qt.PenStyle.NoPen)
             painter.drawEllipse(QRectF(last_x - 3.5, last_y - 3.5, 7, 7))
 
             # 当前值标签
@@ -151,7 +151,7 @@ class TrendChartWidget(QWidget):
             painter.setPen(color)
             painter.drawText(
                 QRectF(last_x + 5, last_y - 12, 60, 16),
-                Qt.AlignLeft | Qt.AlignVCenter,
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                 f"{data[-1]:.1f}%"
             )
 
@@ -161,12 +161,12 @@ class TrendChartWidget(QWidget):
         painter.setFont(y_label_font)
         for name, data in self.series.items():
             color = self.series_colors.get(name, QColor("#8be9fd"))
-            painter.setPen(Qt.NoPen)
+            painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(color)
             painter.drawRoundedRect(QRectF(legend_x, legend_y, 10, 10), 2, 2)
             painter.setPen(QColor("#f8f8f2"))
             label = self.series_labels.get(name, name)
-            painter.drawText(QRectF(legend_x + 14, legend_y - 3, 80, 16), Qt.AlignLeft | Qt.AlignVCenter, label)
+            painter.drawText(QRectF(legend_x + 14, legend_y - 3, 80, 16), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, label)
             legend_x += 14 + painter.fontMetrics().width(label) + 20
 
         painter.end()

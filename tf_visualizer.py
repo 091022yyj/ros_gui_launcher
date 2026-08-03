@@ -8,9 +8,9 @@ TF图形化查看器
 import os
 import subprocess
 import re
-from PyQt5.QtCore import Qt, QRectF, QPointF
-from PyQt5.QtGui import QColor, QPen, QBrush, QFont, QPainter, QPainterPath
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import Qt, QRectF, QPointF
+from PyQt6.QtGui import QColor, QPen, QBrush, QFont, QPainter, QPainterPath
+from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QGraphicsScene, QGraphicsView, QGraphicsItem, QGraphicsEllipseItem,
     QGraphicsLineItem, QGraphicsTextItem, QMessageBox, QInputDialog,
@@ -65,7 +65,7 @@ class TFConnection(QGraphicsLineItem):
         self.child_frame = child_frame
         self.update_position()
 
-        self.setPen(QPen(QColor("#8ab4f8"), 2, Qt.SolidLine))
+        self.setPen(QPen(QColor("#8ab4f8"), 2, Qt.PenStyle.SolidLine))
         self.setFlag(QGraphicsItem.ItemIsSelectable, True)
 
     def update_position(self):
@@ -196,7 +196,7 @@ class TFVisualizerWidget(ROSWidget):
         layout.addLayout(toolbar)
 
         # 主要内容区: 标准TF树(左) + 信息面板(右)
-        splitter = QSplitter(Qt.Horizontal)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # 标准TF树
         tree_group = QGroupBox("TF坐标系树 (标准树形)")

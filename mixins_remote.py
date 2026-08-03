@@ -14,14 +14,14 @@ import traceback
 from constants import (BASE_DIR, CONFIG_FILE, LOG_DIR, VERSION, DEFAULT_CONFIG,
                       MAX_RESTARTS, COL_STATUS, COL_PATH, COL_ARGS, COL_RESTART,
                       COL_AUTOSTART, COL_OPS, normalize_task)
-from PyQt5.QtCore import Qt, QProcess, QTimer, QRectF
-from PyQt5.QtGui import QColor, QKeySequence
-from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
+from PyQt6.QtCore import Qt, QProcess, QTimer, QRectF
+from PyQt6.QtGui import QColor, QShortcut, QKeySequence
+from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QLineEdit, QFileDialog,
                              QGroupBox, QPlainTextEdit, QTableWidget,
                              QTableWidgetItem, QAbstractItemView, QMessageBox,
                              QHeaderView, QSpinBox, QListWidgetItem, QComboBox,
-                             QShortcut, QInputDialog, QTreeWidgetItem)
+                            QInputDialog, QTreeWidgetItem)
 
 
 class RemoteMixin:
@@ -44,7 +44,7 @@ class RemoteMixin:
 
     def _add_machine(self):
         """添加机器"""
-        from PyQt5.QtWidgets import QInputDialog
+        from PyQt6.QtWidgets import QInputDialog
 
         name, ok = QInputDialog.getText(self, "添加机器", "机器名称:")
         if not ok or not name:
@@ -88,10 +88,10 @@ class RemoteMixin:
         reply = QMessageBox.question(
             self, "删除机器",
             f"确定要删除机器 [{machine_name}] 吗?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
         )
-        if reply != QMessageBox.Yes:
+        if reply != QMessageBox.StandardButton.Yes:
             return
 
         result = self.multi_machine.remove_machine(machine_name)
@@ -346,7 +346,7 @@ class RemoteMixin:
 
     def _load_plugin(self):
         """加载插件"""
-        from PyQt5.QtWidgets import QInputDialog
+        from PyQt6.QtWidgets import QInputDialog
 
         plugins = self.plugin_manager.discover_plugins()
         if not plugins:
@@ -449,7 +449,7 @@ class RemoteMixin:
                     name_display = f"📄 {name}"
 
                 item = QTreeWidgetItem([name_display, size, file_type, date])
-                item.setData(0, Qt.UserRole, name)  # 存储原始文件名
+                item.setData(0, Qt.ItemDataRole.UserRole, name)  # 存储原始文件名
                 self.remote_dir_tree.addTopLevelItem(item)
 
         # 获取文件列表
@@ -483,7 +483,7 @@ class RemoteMixin:
         if not item:
             return
 
-        name = item.data(0, Qt.UserRole)
+        name = item.data(0, Qt.ItemDataRole.UserRole)
         current_path = self.remote_path_edit.text().strip()
 
         # 构建完整路径
@@ -502,17 +502,17 @@ class RemoteMixin:
             reply = QMessageBox.question(
                 self, "运行文件",
                 f"是否要运行 {name}?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.Yes
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes
             )
-            if reply == QMessageBox.Yes:
+            if reply == QMessageBox.StandardButton.Yes:
                 self._remote_run_file(full_path)
 
     def _remote_file_selected(self):
         """文件选中变化"""
         current_item = self.remote_dir_tree.currentItem()
         if current_item:
-            name = current_item.data(0, Qt.UserRole)
+            name = current_item.data(0, Qt.ItemDataRole.UserRole)
             current_path = self.remote_path_edit.text().strip()
             if current_path.endswith("/"):
                 full_path = current_path + name
@@ -527,7 +527,7 @@ class RemoteMixin:
             QMessageBox.information(self, "提示", "请先选择一个文件")
             return
 
-        name = current_item.data(0, Qt.UserRole)
+        name = current_item.data(0, Qt.ItemDataRole.UserRole)
         current_path = self.remote_path_edit.text().strip()
 
         if current_path.endswith("/"):
@@ -566,10 +566,10 @@ class RemoteMixin:
             reply = QMessageBox.question(
                 self, "启动launch文件",
                 f"是否要启动 {launch_name}?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.Yes
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes
             )
-            if reply == QMessageBox.Yes:
+            if reply == QMessageBox.StandardButton.Yes:
                 self._status_label.setText(f"正在 {machine_name} 启动launch ...")
                 def on_done_launch(result):
                     self._status_label.setText("就绪")
@@ -586,10 +586,10 @@ class RemoteMixin:
             reply = QMessageBox.question(
                 self, "运行Python文件",
                 f"是否要运行 {file_path}?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.Yes
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes
             )
-            if reply == QMessageBox.Yes:
+            if reply == QMessageBox.StandardButton.Yes:
                 cmd = f"python3 {file_path} &"
                 self._status_label.setText(f"正在 {machine_name} 运行 {file_path} ...")
                 def on_done_py(result):
@@ -610,7 +610,7 @@ class RemoteMixin:
             QMessageBox.information(self, "提示", "请先选择一个文件")
             return
 
-        name = current_item.data(0, Qt.UserRole)
+        name = current_item.data(0, Qt.ItemDataRole.UserRole)
         file_type = current_item.text(2)
 
         if not name.endswith(".launch"):
@@ -647,7 +647,7 @@ class RemoteMixin:
             QMessageBox.information(self, "提示", "请先选择一个文件")
             return
 
-        name = current_item.data(0, Qt.UserRole)
+        name = current_item.data(0, Qt.ItemDataRole.UserRole)
         file_type = current_item.text(2)
 
         if not name.endswith(".py"):
@@ -715,7 +715,7 @@ class RemoteMixin:
                         name_display = f"📄 {name}"
 
                     item = QTreeWidgetItem([name_display, "", file_type, dir_path])
-                    item.setData(0, Qt.UserRole, file_path)
+                    item.setData(0, Qt.ItemDataRole.UserRole, file_path)
                     self.remote_dir_tree.addTopLevelItem(item)
             else:
                 self.remote_dir_tree.addTopLevelItem(QTreeWidgetItem(["未找到匹配文件", "", "", ""]))

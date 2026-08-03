@@ -9,8 +9,8 @@
 """
 import os
 
-from PyQt5.QtCore import QTimer
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QComboBox,
+from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QComboBox,
                              QPushButton, QLabel, QPlainTextEdit, QLineEdit,
                              QCheckBox, QMessageBox)
 from ros_widget_base import ROSWidget

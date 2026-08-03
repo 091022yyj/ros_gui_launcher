@@ -1,7 +1,7 @@
 import pytest
 import time
 import os
-from PyQt5.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication
 
 @pytest.fixture(scope="module")
 def app():

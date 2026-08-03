@@ -9,8 +9,8 @@
 """
 import os
 import subprocess
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
+from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
                              QLabel, QProgressBar, QPushButton, QGridLayout,
                              QPlainTextEdit)
 from ros_widget_base import ROSWidget
@@ -78,7 +78,7 @@ class SensorPanelWidget(ROSWidget):
             box = QGroupBox(name)
             box_layout = QVBoxLayout(box)
             label = QLabel("--")
-            label.setAlignment(Qt.AlignCenter)
+            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             label.setStyleSheet("font-size: 14px; padding: 8px;")
             box_layout.addWidget(label)
             sensor_grid.addWidget(box, row, col)

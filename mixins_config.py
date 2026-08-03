@@ -14,14 +14,14 @@ import traceback
 from constants import (BASE_DIR, CONFIG_FILE, LOG_DIR, VERSION, DEFAULT_CONFIG,
                       MAX_RESTARTS, COL_STATUS, COL_PATH, COL_ARGS, COL_RESTART,
                       COL_AUTOSTART, COL_OPS, normalize_task)
-from PyQt5.QtCore import Qt, QProcess, QTimer, QRectF
-from PyQt5.QtGui import QColor, QKeySequence
-from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
+from PyQt6.QtCore import Qt, QProcess, QTimer, QRectF
+from PyQt6.QtGui import QColor, QShortcut, QKeySequence
+from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QLineEdit, QFileDialog,
                              QGroupBox, QPlainTextEdit, QTableWidget,
                              QTableWidgetItem, QAbstractItemView, QMessageBox,
                              QHeaderView, QSpinBox, QListWidgetItem, QComboBox,
-                             QShortcut, QInputDialog, QTreeWidgetItem)
+                            QInputDialog, QTreeWidgetItem)
 
 
 class ConfigMixin:
@@ -99,7 +99,21 @@ class ConfigMixin:
         self.save_config()
         if self._log_file:
             self._log_file.close()
+        if getattr(self, "glass_bg", None) is not None:
+            try:
+                self.glass_bg.pause_timers()
+            except Exception:
+                pass
         event.accept()
+
+    def resizeEvent(self, event):
+        """窗口大小变化时更新玻璃背景"""
+        if getattr(self, "glass_bg", None) is not None:
+            try:
+                self.glass_bg.setGeometry(self.centralWidget().rect())
+            except Exception:
+                pass
+        super().resizeEvent(event)
 
     def _validate_path(self, path):
         """验证路径安全性"""
@@ -223,9 +237,9 @@ class ConfigMixin:
                         f"发现新版本 {latest_version}，当前版本 {VERSION}\n\n"
                         f"更新说明:\n{data.get('body', '无')}\n\n"
                         f"是否打开下载页面？",
-                        QMessageBox.Yes | QMessageBox.No
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                     )
-                    if reply == QMessageBox.Yes:
+                    if reply == QMessageBox.StandardButton.Yes:
                         import webbrowser
                         webbrowser.open(data.get("html_url", ""))
                 else:

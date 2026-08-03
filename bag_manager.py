@@ -10,8 +10,8 @@ import os
 import subprocess
 import signal
 from datetime import datetime
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
                              QLabel, QPushButton, QListWidget, QLineEdit,
                              QDoubleSpinBox, QFileDialog, QMessageBox,
                              QInputDialog)
@@ -195,8 +195,8 @@ class BagManagerWidget(ROSWidget):
             return
         bag_name = item.text().split("  (")[0]
         reply = QMessageBox.question(self, "删除", f"删除 {bag_name}?",
-                                     QMessageBox.Yes | QMessageBox.No)
-        if reply == QMessageBox.Yes:
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
             try:
                 os.remove(os.path.join(self.bag_dir, bag_name))
                 self._refresh_bag_list()

@@ -1,6 +1,6 @@
 import os
 import signal
-from PyQt5.QtCore import QProcess, QTimer
+from PyQt6.QtCore import QProcess, QTimer
 
 class ProcessRow:
     def __init__(self, path, kind, args="", auto_restart=False, auto_start=False):

@@ -8,8 +8,8 @@
 """
 import os
 import subprocess
-from PyQt5.QtCore import QTimer
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
+from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
                              QLabel, QPushButton, QTableWidget, QTableWidgetItem,
                              QHeaderView, QCheckBox, QMessageBox)
 from ros_widget_base import ROSWidget
@@ -66,7 +66,7 @@ class AlarmSystemWidget(ROSWidget):
         alarm_layout = QVBoxLayout(alarm_group)
         self.alarm_table = QTableWidget(0, 3)
         self.alarm_table.setHorizontalHeaderLabels(["时间", "项目", "状态"])
-        self.alarm_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.alarm_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.alarm_table.verticalHeader().setVisible(False)
         alarm_layout.addWidget(self.alarm_table)
         layout.addWidget(alarm_group, 1)

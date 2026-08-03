@@ -14,14 +14,14 @@ import traceback
 from constants import (BASE_DIR, CONFIG_FILE, LOG_DIR, VERSION, DEFAULT_CONFIG,
                       MAX_RESTARTS, COL_STATUS, COL_PATH, COL_ARGS, COL_RESTART,
                       COL_AUTOSTART, COL_OPS, normalize_task)
-from PyQt5.QtCore import Qt, QProcess, QTimer, QRectF
-from PyQt5.QtGui import QColor, QKeySequence
-from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
+from PyQt6.QtCore import Qt, QProcess, QTimer, QRectF
+from PyQt6.QtGui import QColor, QShortcut, QKeySequence
+from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QLineEdit, QFileDialog,
                              QGroupBox, QPlainTextEdit, QTableWidget,
                              QTableWidgetItem, QAbstractItemView, QMessageBox,
                              QHeaderView, QSpinBox, QListWidgetItem, QComboBox,
-                             QShortcut, QInputDialog, QTreeWidgetItem)
+                            QInputDialog, QTreeWidgetItem)
 
 
 class SimulationMixin:
@@ -29,7 +29,7 @@ class SimulationMixin:
 
     def _add_schedule(self):
         """添加定时任务"""
-        from PyQt5.QtWidgets import QInputDialog
+        from PyQt6.QtWidgets import QInputDialog
 
         name, ok = QInputDialog.getText(self, "添加定时任务", "任务名称:")
         if not ok or not name:
@@ -218,7 +218,7 @@ class SimulationMixin:
 
     def _load_urdf_model(self):
         """加载URDF模型(异步)"""
-        from PyQt5.QtWidgets import QInputDialog
+        from PyQt6.QtWidgets import QInputDialog
         path, _ = QFileDialog.getOpenFileName(self, "选择URDF文件",
                                               os.path.expanduser("~"),
                                               "URDF文件 (*.urdf)")
@@ -246,7 +246,7 @@ class SimulationMixin:
 
     def _load_sdf_model(self):
         """加载SDF模型(异步)"""
-        from PyQt5.QtWidgets import QInputDialog
+        from PyQt6.QtWidgets import QInputDialog
         path, _ = QFileDialog.getOpenFileName(self, "选择SDF文件",
                                               os.path.expanduser("~"),
                                               "SDF文件 (*.sdf)")
@@ -325,7 +325,7 @@ class SimulationMixin:
 
     def _search_errors(self):
         """搜索错误"""
-        from PyQt5.QtWidgets import QInputDialog
+        from PyQt6.QtWidgets import QInputDialog
 
         keyword, ok = QInputDialog.getText(self, "搜索错误", "关键词:")
         if not ok:

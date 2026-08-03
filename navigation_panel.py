@@ -7,8 +7,8 @@
 - 停止导航/取消目标
 """
 import os
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
                              QLabel, QPushButton, QLineEdit, QDoubleSpinBox,
                              QTableWidget, QTableWidgetItem, QMessageBox,
                              QHeaderView)
@@ -83,7 +83,7 @@ class NavigationWidget(ROSWidget):
 
         self.wp_table = QTableWidget(0, 5)
         self.wp_table.setHorizontalHeaderLabels(["航点名", "X", "Y", "朝向°", "操作"])
-        self.wp_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.wp_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.wp_table.setColumnWidth(4, 160)
         self.wp_table.verticalHeader().setVisible(False)
         wp_layout.addWidget(self.wp_table)

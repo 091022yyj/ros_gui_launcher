@@ -8,7 +8,7 @@ ProcessRow: 管理一行任务(路径+参数+QProcess进程)
 import os
 import signal
 import platform
-from PyQt5.QtCore import QProcess
+from PyQt6.QtCore import QProcess
 
 
 class ProcessRow:
@@ -80,7 +80,7 @@ class ProcessRow:
         if self.process is not None:
             self.process.deleteLater()  # 释放旧的 QProcess,避免泄漏
         self.process = QProcess()
-        self.process.setProcessChannelMode(QProcess.MergedChannels)
+        self.process.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
         self.process.readyReadStandardOutput.connect(
             lambda: log_callback(self, self.process.readAllStandardOutput().data().decode(errors="replace"))
         )
@@ -123,7 +123,7 @@ class ProcessRow:
             self.process.kill()
 
     def is_running(self):
-        return self.process is not None and self.process.state() == QProcess.Running
+        return self.process is not None and self.process.state() == QProcess.ProcessState.Running
 
     def exists(self, cache=None):
         if cache is not None and self.path in cache:

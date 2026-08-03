@@ -14,14 +14,14 @@ import traceback
 from constants import (BASE_DIR, CONFIG_FILE, LOG_DIR, VERSION, DEFAULT_CONFIG,
                       MAX_RESTARTS, COL_STATUS, COL_PATH, COL_ARGS, COL_RESTART,
                       COL_AUTOSTART, COL_OPS, normalize_task)
-from PyQt5.QtCore import Qt, QProcess, QTimer, QRectF
-from PyQt5.QtGui import QColor, QKeySequence
-from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
+from PyQt6.QtCore import Qt, QProcess, QTimer, QRectF
+from PyQt6.QtGui import QColor, QShortcut, QKeySequence
+from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QLineEdit, QFileDialog,
                              QGroupBox, QPlainTextEdit, QTableWidget,
                              QTableWidgetItem, QAbstractItemView, QMessageBox,
                              QHeaderView, QSpinBox, QListWidgetItem, QComboBox,
-                             QShortcut, QInputDialog, QTreeWidgetItem)
+                            QInputDialog, QTreeWidgetItem)
 
 
 class MonitorMixin:
@@ -114,8 +114,8 @@ class MonitorMixin:
             # 询问用户
             reply = QMessageBox.question(self, "选择类型",
                 "该文件应添加到哪个类别？",
-                QMessageBox.Yes | QMessageBox.No)
-            kind = "launch" if reply == QMessageBox.Yes else "py"
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            kind = "launch" if reply == QMessageBox.StandardButton.Yes else "py"
 
         table = self._table_of(kind)
         # 检查是否已存在
@@ -131,8 +131,8 @@ class MonitorMixin:
         """清空历史记录"""
         reply = QMessageBox.question(self, "确认清空",
             "确定要清空所有历史记录吗？",
-            QMessageBox.Yes | QMessageBox.No)
-        if reply == QMessageBox.Yes:
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
             self.config["history"] = []
             self.save_config()
             if hasattr(self, 'history_list'):
@@ -160,7 +160,7 @@ class MonitorMixin:
 
     def _create_scene(self):
         """创建新场景"""
-        from PyQt5.QtWidgets import QInputDialog
+        from PyQt6.QtWidgets import QInputDialog
         name, ok = QInputDialog.getText(self, "创建场景", "场景名称:")
         if ok and name:
             # 获取当前配置
@@ -180,7 +180,7 @@ class MonitorMixin:
 
     def _save_current_as_scene(self):
         """将当前配置保存为场景"""
-        from PyQt5.QtWidgets import QInputDialog
+        from PyQt6.QtWidgets import QInputDialog
         name, ok = QInputDialog.getText(self, "保存场景", "场景名称:")
         if ok and name:
             launch_files = [t.to_dict() for _, t, _ in self._rows_of(self.launch_table)]
@@ -247,9 +247,9 @@ class MonitorMixin:
         scene_name = current_item.text().split(" (")[0]
         reply = QMessageBox.question(self, "确认删除",
             f"确定要删除场景 '{scene_name}' 吗？",
-            QMessageBox.Yes | QMessageBox.No)
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
 
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             self.scene_manager.delete_scene(scene_name)
             self._load_scene_list()
             self.log(f"删除场景: {scene_name}")
@@ -524,9 +524,9 @@ class MonitorMixin:
         """清理旧日志"""
         reply = QMessageBox.question(self, "确认清理",
             "确定要清理30天前的日志文件吗？",
-            QMessageBox.Yes | QMessageBox.No)
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
 
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             self.log_manager.cleanup_old_logs(days=30)
             self._refresh_log_size()
             self.log("已清理旧日志文件")
@@ -626,7 +626,7 @@ class MonitorMixin:
 
     def _save_current_config(self):
         """保存当前配置"""
-        from PyQt5.QtWidgets import QInputDialog
+        from PyQt6.QtWidgets import QInputDialog
 
         # 获取当前配置名
         current_config = self.config.get("current_config", "默认配置")
@@ -694,7 +694,7 @@ class MonitorMixin:
                 task.auto_restart = enabled
                 restart_item = table.item(r, COL_RESTART)
                 if restart_item:
-                    restart_item.setCheckState(Qt.Checked if enabled else Qt.Unchecked)
+                    restart_item.setCheckState(Qt.CheckState.Checked if enabled else Qt.CheckState.Unchecked)
 
         self.save_config()
         self.log(f"批量{'启用' if enabled else '禁用'}崩溃重启")
@@ -707,7 +707,7 @@ class MonitorMixin:
                 task.auto_start = enabled
                 autostart_item = table.item(r, COL_AUTOSTART)
                 if autostart_item:
-                    autostart_item.setCheckState(Qt.Checked if enabled else Qt.Unchecked)
+                    autostart_item.setCheckState(Qt.CheckState.Checked if enabled else Qt.CheckState.Unchecked)
 
         self.save_config()
         self.log(f"批量{'启用' if enabled else '禁用'}自启动")

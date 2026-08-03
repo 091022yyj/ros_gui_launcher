@@ -58,15 +58,15 @@ from mixins_config import ConfigMixin
 from mixins_monitor import MonitorMixin
 from mixins_simulation import SimulationMixin
 from mixins_remote import RemoteMixin
-from PyQt5.QtCore import Qt, QProcess, QTimer
-from PyQt5.QtGui import QColor, QKeySequence
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import Qt, QProcess, QTimer
+from PyQt6.QtGui import QColor, QShortcut, QKeySequence
+from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QLineEdit, QFileDialog, QGroupBox,
     QPlainTextEdit, QTableWidget, QTableWidgetItem, QAbstractItemView,
     QMessageBox, QHeaderView, QSpinBox, QTabWidget, QProgressBar,
     QListWidget, QListWidgetItem, QDockWidget, QSplitter, QTreeWidget,
-    QTreeWidgetItem, QHeaderView as QTreeHeaderView, QComboBox, QShortcut,
+    QTreeWidgetItem, QHeaderView as QTreeHeaderView, QComboBox,
     QStackedWidget,
 )
 
@@ -475,6 +475,17 @@ class MainWindow(QMainWindow, TasksMixin, ConfigMixin, MonitorMixin, SimulationM
         self.setCentralWidget(central)
         self._main_layout = QVBoxLayout(central)
 
+        # 液态玻璃背景层
+        try:
+            from glass_background import GlassBackground
+            self.glass_bg = GlassBackground(central)
+            self.glass_bg.setGeometry(central.rect())
+            self.glass_bg.lower()
+            central._glass_bg = self.glass_bg  # 防GC
+        except Exception as e:
+            self.glass_bg = None
+            print("玻璃背景加载失败:", e)
+
         # ---- 全局操作 (轻量级,立即初始化) ----
         from ui_anim import add_press_effect
         global_row = QHBoxLayout()
@@ -589,7 +600,7 @@ class MainWindow(QMainWindow, TasksMixin, ConfigMixin, MonitorMixin, SimulationM
         self._main_layout.addWidget(env_box)
 
         # ---- launch/py 文件并排管理 (水平分割,可拖动) ----
-        self.task_splitter = QSplitter(Qt.Horizontal)
+        self.task_splitter = QSplitter(Qt.Orientation.Horizontal)
         self.task_splitter.setChildrenCollapsible(False)
         self.task_splitter.setHandleWidth(6)
 
@@ -605,7 +616,7 @@ class MainWindow(QMainWindow, TasksMixin, ConfigMixin, MonitorMixin, SimulationM
         self.task_splitter.setSizes([600, 600])
 
         # ---- 任务区 + 日志区 垂直分割,可拖动 ----
-        self.main_splitter = QSplitter(Qt.Vertical)
+        self.main_splitter = QSplitter(Qt.Orientation.Vertical)
         self.main_splitter.setChildrenCollapsible(False)
         self.main_splitter.setHandleWidth(6)
         self.main_splitter.addWidget(self.task_splitter)
@@ -1602,7 +1613,7 @@ def main():
     app = QApplication(sys.argv)
     win = MainWindow()
     win.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@
 - 每次调用使用独立信号对象,避免多个异步操作信号串扰
 """
 import threading
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal
 
 
 class _SignalBridge(QObject):

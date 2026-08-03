@@ -9,9 +9,9 @@
 import os
 import subprocess
 import tempfile
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
+from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
                              QLabel, QPushButton, QComboBox, QFileDialog,
                              QMessageBox)
 from ros_widget_base import ROSWidget
@@ -63,7 +63,7 @@ class CameraViewWidget(ROSWidget):
 
         # 画面
         self.image_label = QLabel()
-        self.image_label.setAlignment(Qt.AlignCenter)
+        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.image_label.setMinimumSize(400, 300)
         self.image_label.setStyleSheet("""
             background-color: #1e1f29; border: 1px solid #44475a; border-radius: 8px;
@@ -163,7 +163,7 @@ class CameraViewWidget(ROSWidget):
             pixmap = QPixmap(tmp_name)
             if not pixmap.isNull():
                 scaled = pixmap.scaled(self.image_label.size(),
-                                       Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                                       Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
                 self.image_label.setPixmap(scaled)
                 self.status_label.setText(f"{self.current_topic} | {pixmap.width()}x{pixmap.height()}")
             else:

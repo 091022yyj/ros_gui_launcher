@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sidebar } from "./components/Sidebar";
+import { waitForBackend } from "./hooks/useROS";
 import { TaskList } from "./components/TaskList";
 import { MonitorPage } from "./components/MonitorPage";
 import { ROSMonitor } from "./components/ROSMonitor";
@@ -51,7 +52,27 @@ const pages: Record<string, React.ComponentType> = {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("tasks");
+  const [backendReady, setBackendReady] = useState(false);
   const Page = pages[activeTab] || (() => <div>404</div>);
+
+  // 等待Tauri自动启动的本地后端就绪
+  useEffect(() => {
+    waitForBackend().then(setBackendReady);
+  }, []);
+
+  if (!backendReady) {
+    return (
+      <div className="h-screen w-screen bg-apple-gray flex items-center justify-center">
+        <div className="glass p-8 text-center">
+          <div className="text-4xl mb-4 animate-pulse">🤖</div>
+          <div className="font-semibold text-lg mb-1">ROS 启动器启动中</div>
+          <div className="text-sm text-[--text-tertiary]">
+            正在启动本地服务...
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen w-screen bg-apple-gray flex overflow-hidden">

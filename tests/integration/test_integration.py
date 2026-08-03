@@ -1,7 +1,7 @@
 import pytest
 import tempfile
 import os
-from PyQt5.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication
 from launcher_core import MainWindow
 from config_manager import ConfigManager
 from process_manager import ProcessManager
