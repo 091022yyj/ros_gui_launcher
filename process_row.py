@@ -9,7 +9,6 @@ import os
 import signal
 import platform
 from PyQt5.QtCore import QProcess
-from constants import VERSION
 
 
 class ProcessRow:
