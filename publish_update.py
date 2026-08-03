@@ -46,12 +46,12 @@ def create_github_release(config, token, version):
     """创建GitHub Release并上传文件"""
     repo_owner = config["repo_owner"]
     repo_name = config["repo_name"]
-    
+
     headers = {
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json"
     }
-    
+
     # 创建Release
     release_data = {
         "tag_name": f"v{version}",
@@ -60,23 +60,23 @@ def create_github_release(config, token, version):
         "draft": False,
         "prerelease": False
     }
-    
+
     url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/releases"
     response = requests.post(url, json=release_data, headers=headers)
-    
+
     if response.status_code != 201:
         print(f"创建Release失败: {response.text}")
         return None
-    
+
     release = response.json()
     release_id = release["id"]
     print(f"Release创建成功: {release['html_url']}")
-    
+
     headers_upload = {
         "Authorization": f"token {token}",
         "Content-Type": "application/octet-stream"
     }
-    
+
     # 上传可执行文件
     executable_path = DIST_DIR / "ros_gui_launcher"
     if executable_path.exists():
@@ -88,7 +88,7 @@ def create_github_release(config, token, version):
             print("可执行文件上传成功!")
         else:
             print(f"可执行文件上传失败: {response.text}")
-    
+
     # 上传deb安装包
     deb_files = list(DIST_DIR.glob("*.deb"))
     for deb_path in deb_files:
@@ -100,32 +100,32 @@ def create_github_release(config, token, version):
             print(f"deb包上传成功: {deb_path.name}")
         else:
             print(f"deb包上传失败: {deb_path.name} - {response.text}")
-    
+
     return release
 
 def main():
     config = load_config()
     version = config["current_version"]
-    
+
     print(f"当前版本: {version}")
     new_version = input("请输入新版本号 (直接回车保持当前版本): ").strip()
     if new_version:
         config["current_version"] = new_version
         save_config(config)
         version = new_version
-    
+
     print(f"即将发布版本: v{version}")
-    
+
     # 打包
     if not build_application():
         return
-    
+
     # 获取GitHub Token
     token = input("请输入GitHub Personal Access Token: ").strip()
     if not token:
         print("未输入Token，取消发布")
         return
-    
+
     # 创建Release并上传
     release = create_github_release(config, token, version)
     if release:

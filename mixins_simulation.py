@@ -30,42 +30,42 @@ class SimulationMixin:
     def _add_schedule(self):
         """添加定时任务"""
         from PyQt5.QtWidgets import QInputDialog
-        
+
         name, ok = QInputDialog.getText(self, "添加定时任务", "任务名称:")
         if not ok or not name:
             return
-        
+
         # 选择任务类型
-        task_type, ok = QInputDialog.getItem(self, "选择任务类型", "类型:", 
+        task_type, ok = QInputDialog.getItem(self, "选择任务类型", "类型:",
                                              ["launch", "py"], 0, False)
         if not ok:
             return
-        
+
         # 选择任务路径
         if task_type == "launch":
-            path, _ = QFileDialog.getOpenFileName(self, "选择launch文件", 
-                                                  os.path.expanduser("~"), 
+            path, _ = QFileDialog.getOpenFileName(self, "选择launch文件",
+                                                  os.path.expanduser("~"),
                                                   "Launch文件 (*.launch)")
         else:
-            path, _ = QFileDialog.getOpenFileName(self, "选择Python文件", 
-                                                  os.path.expanduser("~"), 
+            path, _ = QFileDialog.getOpenFileName(self, "选择Python文件",
+                                                  os.path.expanduser("~"),
                                                   "Python文件 (*.py)")
-        
+
         if not path:
             return
-        
+
         # 选择调度类型
         schedule_type, ok = QInputDialog.getItem(self, "选择调度类型", "类型:",
                                                  ["once", "repeat"], 0, False)
         if not ok:
             return
-        
+
         interval = None
         if schedule_type == "repeat":
             interval, ok = QInputDialog.getInt(self, "设置间隔", "间隔秒数:", 3600, 60, 86400)
             if not ok:
                 return
-        
+
         self.task_scheduler.add_schedule(
             name, task_type, path, schedule_type, interval=interval
         )
@@ -76,7 +76,7 @@ class SimulationMixin:
         """刷新调度列表"""
         self.schedule_tree.clear()
         schedules = self.task_scheduler.get_schedule_list()
-        
+
         for schedule in schedules:
             item = QTreeWidgetItem([
                 schedule["name"],
@@ -140,7 +140,7 @@ class SimulationMixin:
         )
         self._status_label.setText("启动Gazebo中...")
         self.start_gazebo_btn.setEnabled(False)
-        
+
         def on_done(result):
             self.start_gazebo_btn.setEnabled(True)
             self._status_label.setText("就绪")
@@ -151,7 +151,7 @@ class SimulationMixin:
                 self._refresh_gazebo_models()
             else:
                 QMessageBox.warning(self, "错误", f"启动Gazebo失败:\n{result['error']}")
-        
+
         self._run_async(lambda: self.sim_controller.start_gazebo(), on_done)
 
     def _stop_gazebo(self):
@@ -176,7 +176,7 @@ class SimulationMixin:
             else:
                 self.gazebo_status_label.setText("Gazebo: 未运行")
                 self.gazebo_status_label.setStyleSheet("color: #6272a4;")
-        
+
         self._run_async(
             lambda: {"running": self.sim_controller.is_gazebo_running()},
             on_done
@@ -194,13 +194,13 @@ class SimulationMixin:
         except ValueError:
             QMessageBox.warning(self, "错误", "场景格式错误")
             return
-        
+
         self.sim_controller.set_ros_env(
             self.ros_setup_edit.text().strip(),
             self.ws_setup_edit.text().strip()
         )
         self._status_label.setText(f"启动场景 {text} ...")
-        
+
         def on_done(result):
             self._status_label.setText("就绪")
             if result["success"]:
@@ -210,7 +210,7 @@ class SimulationMixin:
                 self._refresh_gazebo_models()
             else:
                 QMessageBox.warning(self, "错误", f"启动场景失败:\n{result['error']}")
-        
+
         self._run_async(
             lambda: self.sim_controller.start_simulation_scene(pkg, file),
             on_done
@@ -314,11 +314,11 @@ class SimulationMixin:
     def _analyze_all_logs(self):
         """分析所有日志"""
         analysis = self.log_analyzer.analyze_all_logs()
-        
+
         if "error" in analysis:
             QMessageBox.warning(self, "错误", f"分析日志失败:\n{analysis['error']}")
             return
-        
+
         report = self.log_analyzer.generate_report(analysis)
         self.analysis_result.setPlainText(report)
         self.log(f"日志分析完成: {analysis['total_errors']}个错误, {analysis['total_warnings']}个警告")
@@ -326,17 +326,17 @@ class SimulationMixin:
     def _search_errors(self):
         """搜索错误"""
         from PyQt5.QtWidgets import QInputDialog
-        
+
         keyword, ok = QInputDialog.getText(self, "搜索错误", "关键词:")
         if not ok:
             return
-        
+
         results = self.log_analyzer.search_errors(keyword=keyword)
-        
+
         report = f"搜索结果: {len(results)}条匹配\n\n"
         for r in results[:50]:  # 最多显示50条
             report += f"[{r['file']}] 行{r['line']}: {r['content'][:100]}\n"
-        
+
         self.analysis_result.setPlainText(report)
 
     def _export_report(self):
@@ -346,7 +346,7 @@ class SimulationMixin:
                                               "文本文件 (*.txt)")
         if not path:
             return
-        
+
         analysis = self.log_analyzer.analyze_all_logs()
         report = self.log_analyzer.generate_report(analysis, path)
         self.log(f"报告已导出: {path}")

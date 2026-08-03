@@ -15,7 +15,7 @@ class ConfigManager:
     def __init__(self, config_path):
         self.config_path = Path(config_path)
         self.backup_dir = self.config_path.parent / "config_backups"
-    
+
     def load(self):
         """加载配置文件"""
         try:
@@ -28,28 +28,28 @@ class ConfigManager:
         except (OSError, ValueError):
             # 配置文件损坏时尝试从备份恢复
             return self._load_from_backup()
-    
+
     def save(self, config):
         """保存配置文件（原子写入）"""
         try:
             # 确保目录存在
             self.config_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             # 原子写入
             tmp_path = self.config_path.with_suffix('.tmp')
             with open(tmp_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, ensure_ascii=False, indent=2)
-            
+
             # 替换原文件
             os.replace(tmp_path, self.config_path)
-            
+
             # 创建备份
             self._create_backup(config)
-            
+
             return True
         except OSError:
             return False
-    
+
     def export_config(self, export_path):
         """导出配置到文件"""
         try:
@@ -61,7 +61,7 @@ class ConfigManager:
             return True
         except:
             return False
-    
+
     def import_config(self, import_path):
         """从文件导入配置"""
         try:
@@ -73,7 +73,7 @@ class ConfigManager:
             return self.save(config)
         except:
             return False
-    
+
     def _load_from_backup(self):
         """从备份加载配置"""
         try:
@@ -85,7 +85,7 @@ class ConfigManager:
         except:
             pass
         return dict(DEFAULT_CONFIG)
-    
+
     def _create_backup(self, config):
         """创建配置备份"""
         try:

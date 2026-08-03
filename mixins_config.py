@@ -165,12 +165,12 @@ class ConfigMixin:
     def check_update(self):
         """检查更新"""
         self.log("正在检查更新...")
-        
+
         # 读取更新配置
         config_path = os.path.join(BASE_DIR, "update_config.json")
         self.log("配置路径: %s" % config_path)
         self.log("文件存在: %s" % os.path.exists(config_path))
-        
+
         if os.path.exists(config_path):
             try:
                 with open(config_path, "r", encoding="utf-8") as f:
@@ -185,15 +185,15 @@ class ConfigMixin:
         else:
             repo_owner = ""
             repo_name = ""
-        
+
         if not repo_owner or not repo_name:
-            QMessageBox.information(self, "检查更新", 
+            QMessageBox.information(self, "检查更新",
                 "未配置更新服务器。请编辑 update_config.json 文件。\n路径: %s" % config_path)
             return
-        
+
         # 设置更新服务器
         self.updater.set_update_server(f"https://api.github.com/repos/{repo_owner}/{repo_name}")
-        
+
         # 在后台线程中检查更新(不阻塞界面)
         self._run_async(
             lambda: self.updater.check_for_updates(),
@@ -213,7 +213,7 @@ class ConfigMixin:
             if not result.get("ok"):
                 QMessageBox.warning(self, "检查更新", f"无法连接到更新服务器:\n{result.get('error', '未知错误')}")
                 return
-            
+
             data = result.get("data") or {}
             if "tag_name" in data:
                 latest_version = data["tag_name"].lstrip("v")

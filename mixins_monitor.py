@@ -39,7 +39,7 @@ class MonitorMixin:
                 return {"ok": False, "error": "psutil未安装"}
             except Exception as e:
                 return {"ok": False, "error": str(e)}
-        
+
         def on_done(result):
             if not result.get("ok"):
                 self.cpu_label.setText("CPU: 获取失败")
@@ -52,7 +52,7 @@ class MonitorMixin:
             if hasattr(self, 'trend_chart'):
                 self.trend_chart.add_data_point("cpu", cpu)
                 self.trend_chart.add_data_point("memory", mem)
-            
+
             # 获取运行中的进程(在主线程,轻量)
             running_tasks = []
             for kind in ("launch", "py"):
@@ -61,12 +61,12 @@ class MonitorMixin:
                         name = os.path.basename(task.path)
                         pid = task.process.processId() if task.process else "N/A"
                         running_tasks.append(f"● {name} (PID: {pid})")
-            
+
             if running_tasks:
                 self.proc_list.setPlainText("\n".join(running_tasks))
             else:
                 self.proc_list.setPlainText("无运行中的进程")
-        
+
         self._run_async(worker, on_done)
 
     def _load_history(self):
@@ -104,7 +104,7 @@ class MonitorMixin:
         if not os.path.exists(path):
             QMessageBox.warning(self, "文件不存在", f"文件已不存在:\n{path}")
             return
-        
+
         # 根据文件类型添加到对应的表格
         if path.endswith('.launch'):
             kind = "launch"
@@ -116,14 +116,14 @@ class MonitorMixin:
                 "该文件应添加到哪个类别？",
                 QMessageBox.Yes | QMessageBox.No)
             kind = "launch" if reply == QMessageBox.Yes else "py"
-        
+
         table = self._table_of(kind)
         # 检查是否已存在
         for r, task, _ in self._rows_of(table):
             if task.path == path:
                 QMessageBox.information(self, "已存在", "该文件已在列表中")
                 return
-        
+
         self._add_row(table, normalize_task(path), kind)
         self.log(f"从历史记录加载: {path}")
 
@@ -166,7 +166,7 @@ class MonitorMixin:
             # 获取当前配置
             launch_files = [t.to_dict() for _, t, _ in self._rows_of(self.launch_table)]
             py_files = [t.to_dict() for _, t, _ in self._rows_of(self.py_table)]
-            
+
             self.scene_manager.create_scene(
                 name,
                 launch_files=launch_files,
@@ -185,7 +185,7 @@ class MonitorMixin:
         if ok and name:
             launch_files = [t.to_dict() for _, t, _ in self._rows_of(self.launch_table)]
             py_files = [t.to_dict() for _, t, _ in self._rows_of(self.py_table)]
-            
+
             self.scene_manager.create_scene(
                 name,
                 launch_files=launch_files,
@@ -215,25 +215,25 @@ class MonitorMixin:
         if not config:
             QMessageBox.warning(self, "错误", f"无法加载场景: {scene_name}")
             return
-        
+
         # 清空当前列表
         self.launch_table.setRowCount(0)
         self.py_table.setRowCount(0)
-        
+
         # 加载场景配置
         self.ros_setup_edit.setText(config.get("ros_setup", ""))
         self.ws_setup_edit.setText(config.get("ws_setup", ""))
-        
+
         for entry in config.get("launch_files", []):
             self._add_row(self.launch_table, normalize_task(entry), "launch")
-        
+
         for entry in config.get("py_files", []):
             self._add_row(self.py_table, normalize_task(entry), "py")
-        
+
         delay_spin = self.launch_table.property("delay_spin")
         if delay_spin:
             delay_spin.setValue(config.get("start_delay", 3))
-        
+
         self.config["current_scene"] = scene_name
         self.save_config()
         self.log(f"应用场景: {scene_name}")
@@ -243,12 +243,12 @@ class MonitorMixin:
         current_item = self.scene_list.currentItem()
         if not current_item:
             return
-        
+
         scene_name = current_item.text().split(" (")[0]
         reply = QMessageBox.question(self, "确认删除",
             f"确定要删除场景 '{scene_name}' 吗？",
             QMessageBox.Yes | QMessageBox.No)
-        
+
         if reply == QMessageBox.Yes:
             self.scene_manager.delete_scene(scene_name)
             self._load_scene_list()
@@ -296,12 +296,12 @@ class MonitorMixin:
             kind = "py"
         else:
             return
-        
+
         table = self._table_of(kind)
         for r, task, _ in self._rows_of(table):
             if task.path == path:
                 return
-        
+
         self._add_row(table, normalize_task(path), kind)
         self._add_to_history(path)
         self.log(f"通过拖拽添加: {path}")
@@ -309,18 +309,18 @@ class MonitorMixin:
     def on_process_output(self, task, text):
         """进程输出回调（带日志分离）"""
         name = os.path.basename(task.path)
-        
+
         # 写入任务日志
         self.log_manager.write_log(name, text)
-        
+
         # 写入合并日志
         for line in text.rstrip("\n").splitlines():
             log_line = "[%s] %s" % (name, line)
-            
+
             # 自动翻译错误信息
             if self.config.get("translation_enabled", True):
                 log_line = self.translator.translate(log_line)
-            
+
             self.log(log_line)
 
     def _refresh_ros_master(self):
@@ -365,14 +365,14 @@ class MonitorMixin:
         if not current_item:
             QMessageBox.information(self, "提示", "请先选择一个节点")
             return
-        
+
         node_name = current_item.text(0)
         result = self.ros_monitor.get_node_info(node_name)
-        
+
         if result["error"]:
             QMessageBox.warning(self, "错误", f"获取节点信息失败:\n{result['error']}")
             return
-        
+
         info = result["info"]
         msg = f"节点: {info['name']}\n"
         msg += f"PID: {info['pid'] or '未知'}\n"
@@ -385,7 +385,7 @@ class MonitorMixin:
         msg += f"\n服务 ({len(info['services'])}):\n"
         for svc in info['services'][:5]:
             msg += f"  - {svc}\n"
-        
+
         QMessageBox.information(self, "节点信息", msg)
 
     def _refresh_ros_topics(self):
@@ -406,7 +406,7 @@ class MonitorMixin:
                 item = QTreeWidgetItem([topic, "", "", ""])
                 self.topic_tree.addTopLevelItem(item)
         self._run_async(lambda: self.ros_monitor.get_ros_topics(), on_done)
-        
+
         self.log(f"刷新Topic列表: {len(result['topics'])} 个话题")
 
     def _show_topic_info(self):
@@ -415,14 +415,14 @@ class MonitorMixin:
         if not current_item:
             QMessageBox.information(self, "提示", "请先选择一个Topic")
             return
-        
+
         topic_name = current_item.text(0)
         result = self.ros_monitor.get_topic_info(topic_name)
-        
+
         if result["error"]:
             QMessageBox.warning(self, "错误", f"获取Topic信息失败:\n{result['error']}")
             return
-        
+
         info = result["info"]
         msg = f"Topic: {info['name']}\n"
         msg += f"类型: {info['type'] or '未知'}\n"
@@ -432,7 +432,7 @@ class MonitorMixin:
         msg += f"\n订阅者 ({len(info['subscribers'])}):\n"
         for sub in info['subscribers'][:5]:
             msg += f"  - {sub}\n"
-        
+
         QMessageBox.information(self, "Topic信息", msg)
 
     def _refresh_network(self):
@@ -441,19 +441,19 @@ class MonitorMixin:
             self.ros_setup_edit.text().strip(),
             self.ws_setup_edit.text().strip()
         )
-        
+
         master_uri = self.ros_monitor.get_ros_master_uri()
         master_status = self.ros_monitor.check_ros_master()
-        
+
         info = f"ROS_MASTER_URI: {master_uri}\n"
         info += f"主节点状态: {'运行中' if master_status['running'] else '未运行'}\n"
-        
+
         # 检查常用端口
         ports = [(11311, "ROS主节点"), (11312, "ROS节点")]
         for port, name in ports:
             is_open = self.ros_monitor.check_port_open("localhost", port)
             info += f"端口 {port} ({name}): {'开放' if is_open else '关闭'}\n"
-        
+
         self.network_info.setPlainText(info)
 
     def _auto_refresh_ros_monitor(self):
@@ -463,7 +463,7 @@ class MonitorMixin:
             self.ros_setup_edit.text().strip(),
             self.ws_setup_edit.text().strip()
         )
-        
+
         def on_done(result):
             if result.get("running"):
                 self.ros_master_status.setText("状态: 运行中 ✓")
@@ -471,7 +471,7 @@ class MonitorMixin:
             else:
                 self.ros_master_status.setText("状态: 未运行 ✗")
                 self.ros_master_status.setStyleSheet("color: #ef5350; font-weight: bold;")
-        
+
         self._run_async(
             lambda: self.ros_monitor.check_ros_master(),
             on_done
@@ -525,7 +525,7 @@ class MonitorMixin:
         reply = QMessageBox.question(self, "确认清理",
             "确定要清理30天前的日志文件吗？",
             QMessageBox.Yes | QMessageBox.No)
-        
+
         if reply == QMessageBox.Yes:
             self.log_manager.cleanup_old_logs(days=30)
             self._refresh_log_size()
@@ -536,27 +536,27 @@ class MonitorMixin:
         # F5 - 一键启动所有任务
         shortcut_start = QShortcut(QKeySequence("F5"), self)
         shortcut_start.activated.connect(self.start_everything)
-        
+
         # F6 - 停止所有任务
         shortcut_stop = QShortcut(QKeySequence("F6"), self)
         shortcut_stop.activated.connect(self.stop_everything)
-        
+
         # F7 - 启动选中的launch任务
         shortcut_start_launch = QShortcut(QKeySequence("F7"), self)
         shortcut_start_launch.activated.connect(lambda: self.start_selected("launch"))
-        
+
         # F8 - 停止选中的launch任务
         shortcut_stop_launch = QShortcut(QKeySequence("F8"), self)
         shortcut_stop_launch.activated.connect(lambda: self.stop_selected("launch"))
-        
+
         # Ctrl+L - 清空日志
         shortcut_clear_log = QShortcut(QKeySequence("Ctrl+L"), self)
         shortcut_clear_log.activated.connect(self.log_view.clear)
-        
+
         # Ctrl+S - 保存配置
         shortcut_save = QShortcut(QKeySequence("Ctrl+S"), self)
         shortcut_save.activated.connect(self.save_config)
-        
+
         # Ctrl+R - 刷新监控
         shortcut_refresh = QShortcut(QKeySequence("Ctrl+R"), self)
         shortcut_refresh.activated.connect(self.refresh_monitor)
@@ -565,23 +565,23 @@ class MonitorMixin:
         """加载配置列表"""
         if not hasattr(self, 'config_combo'):
             return
-        
+
         self.config_combo.clear()
-        
+
         # 获取所有配置文件
         config_dir = os.path.join(BASE_DIR, "configs")
         if not os.path.exists(config_dir):
             os.makedirs(config_dir, exist_ok=True)
-        
+
         # 添加默认配置
         self.config_combo.addItem("默认配置")
-        
+
         # 添加其他配置文件
         for f in os.listdir(config_dir):
             if f.endswith(".json"):
                 config_name = f[:-5]  # 移除.json
                 self.config_combo.addItem(config_name)
-        
+
         # 设置当前配置
         current_config = self.config.get("current_config", "默认配置")
         index = self.config_combo.findText(current_config)
@@ -592,32 +592,32 @@ class MonitorMixin:
         """配置切换"""
         if config_name == "默认配置":
             return
-        
+
         config_file = os.path.join(BASE_DIR, "configs", f"{config_name}.json")
         if os.path.exists(config_file):
             try:
                 with open(config_file, "r", encoding="utf-8") as f:
                     new_config = json.load(f)
-                
+
                 # 应用新配置
                 self.config.update(new_config)
                 self.ros_setup_edit.setText(self.config.get("ros_setup", ""))
                 self.ws_setup_edit.setText(self.config.get("ws_setup", ""))
-                
+
                 # 清空并重新加载任务列表
                 self.launch_table.setRowCount(0)
                 self.py_table.setRowCount(0)
-                
+
                 for entry in self.config.get("launch_files", []):
                     self._add_row(self.launch_table, normalize_task(entry), "launch")
-                
+
                 for entry in self.config.get("py_files", []):
                     self._add_row(self.py_table, normalize_task(entry), "py")
-                
+
                 delay_spin = self.launch_table.property("delay_spin")
                 if delay_spin:
                     delay_spin.setValue(self.config.get("start_delay", 3))
-                
+
                 self.config["current_config"] = config_name
                 self.save_config()
                 self.log(f"切换到配置: {config_name}")
@@ -627,20 +627,20 @@ class MonitorMixin:
     def _save_current_config(self):
         """保存当前配置"""
         from PyQt5.QtWidgets import QInputDialog
-        
+
         # 获取当前配置名
         current_config = self.config.get("current_config", "默认配置")
-        
+
         # 弹出输入框
         config_name, ok = QInputDialog.getText(
-            self, "保存配置", 
+            self, "保存配置",
             "配置名称:",
             text=current_config
         )
-        
+
         if not ok or not config_name:
             return
-        
+
         # 构建配置
         config_data = {
             "ros_setup": self.ros_setup_edit.text().strip(),
@@ -649,27 +649,27 @@ class MonitorMixin:
             "launch_files": [t.to_dict() for _, t, _ in self._rows_of(self.launch_table)],
             "py_files": [t.to_dict() for _, t, _ in self._rows_of(self.py_table)],
         }
-        
+
         # 保存配置文件
         config_dir = os.path.join(BASE_DIR, "configs")
         os.makedirs(config_dir, exist_ok=True)
-        
+
         config_file = os.path.join(config_dir, f"{config_name}.json")
         try:
             with open(config_file, "w", encoding="utf-8") as f:
                 json.dump(config_data, f, ensure_ascii=False, indent=2)
-            
+
             self.config["current_config"] = config_name
             self.save_config()
-            
+
             # 刷新配置列表
             self._load_config_list()
-            
+
             # 设置当前配置
             index = self.config_combo.findText(config_name)
             if index >= 0:
                 self.config_combo.setCurrentIndex(index)
-            
+
             self.log(f"配置已保存: {config_name}")
         except Exception as e:
             QMessageBox.warning(self, "保存失败", f"保存配置失败:\n{str(e)}")
@@ -695,7 +695,7 @@ class MonitorMixin:
                 restart_item = table.item(r, COL_RESTART)
                 if restart_item:
                     restart_item.setCheckState(Qt.Checked if enabled else Qt.Unchecked)
-        
+
         self.save_config()
         self.log(f"批量{'启用' if enabled else '禁用'}崩溃重启")
 
@@ -708,6 +708,6 @@ class MonitorMixin:
                 autostart_item = table.item(r, COL_AUTOSTART)
                 if autostart_item:
                     autostart_item.setCheckState(Qt.Checked if enabled else Qt.Unchecked)
-        
+
         self.save_config()
         self.log(f"批量{'启用' if enabled else '禁用'}自启动")

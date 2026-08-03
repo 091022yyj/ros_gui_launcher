@@ -178,7 +178,7 @@ class TasksMixin:
         if not rows:
             QMessageBox.information(self, "提示", "请先选择要移动的任务")
             return
-        
+
         # 逐行移动(选择多行时整体移动)
         if direction == -1:  # 上移
             for r in rows:
@@ -190,7 +190,7 @@ class TasksMixin:
                 if r >= table.rowCount() - 1:
                     continue
                 self._swap_rows(table, r, r + 1)
-        
+
         self.save_config()
         # 保持选中
         table.clearSelection()
@@ -203,7 +203,7 @@ class TasksMixin:
         """交换表格两行(所有列+操作widget)"""
         if r1 < 0 or r2 < 0 or r1 >= table.rowCount() or r2 >= table.rowCount():
             return
-        
+
         for col in range(6):
             item1 = table.takeItem(r1, col)
             item2 = table.takeItem(r2, col)
@@ -211,7 +211,7 @@ class TasksMixin:
                 table.setItem(r2, col, item1)
             if item2:
                 table.setItem(r1, col, item2)
-        
+
         # 交换操作列的widget
         w1 = table.cellWidget(r1, COL_OPS)
         w2 = table.cellWidget(r2, COL_OPS)

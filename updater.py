@@ -11,10 +11,10 @@ class Updater:
         self.update_server = None
         self.update_channel = "stable"
         self.backup_dir = "backups"
-    
+
     def set_update_server(self, server_url):
         self.update_server = server_url
-    
+
     def compare_versions(self, v1, v2):
         """比较版本号，返回-1, 0, 1"""
         try:
@@ -28,7 +28,7 @@ class Updater:
                 return 0
         except:
             return 0
-    
+
     def check_for_updates(self):
         """检查是否有更新
         返回: {"ok": bool, "error": str/None, "data": dict/None}
@@ -37,7 +37,7 @@ class Updater:
         """
         if not self.update_server:
             return {"ok": False, "error": "未配置更新服务器", "data": None}
-        
+
         try:
             # GitHub Releases API
             url = f"{self.update_server}/releases/latest"
@@ -54,7 +54,7 @@ class Updater:
             return {"ok": False, "error": "连接更新服务器超时", "data": None}
         except Exception as e:
             return {"ok": False, "error": str(e), "data": None}
-    
+
     def download_update(self, update_url, save_path):
         """下载更新包"""
         try:
@@ -66,9 +66,9 @@ class Updater:
                 return True
         except:
             pass
-        
+
         return False
-    
+
     def create_backup(self):
         """创建当前版本备份"""
         try:
@@ -79,24 +79,24 @@ class Updater:
             return backup_path
         except:
             return None
-    
+
     def apply_update(self, update_path):
         """应用更新"""
         backup_path = None
         try:
             # 备份当前版本
             backup_path = self.create_backup()
-            
+
             # 应用更新
             # 这里需要根据更新包格式实现具体逻辑
-            
+
             return True
         except:
             # 回滚
             if backup_path:
                 self.rollback(backup_path)
             return False
-    
+
     def rollback(self, backup_path):
         """回滚到备份版本"""
         try:
@@ -107,7 +107,7 @@ class Updater:
                         shutil.rmtree(item)
                     else:
                         os.remove(item)
-            
+
             # 恢复备份
             for item in os.listdir(backup_path):
                 src = os.path.join(backup_path, item)
@@ -116,7 +116,7 @@ class Updater:
                     shutil.copytree(src, dst)
                 else:
                     shutil.copy2(src, dst)
-            
+
             return True
         except:
             return False
