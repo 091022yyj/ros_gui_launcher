@@ -4,3 +4,6 @@ dist/
 *.pyc
 config.json
 dist/config.json
+web/node_modules/
+web/dist/
+web/src-tauri/target/
