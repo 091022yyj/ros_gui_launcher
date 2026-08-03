@@ -13,6 +13,7 @@ from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QComboBox,
                              QPushButton, QLabel, QPlainTextEdit, QLineEdit,
                              QCheckBox, QMessageBox)
+from ros_widget_base import ROSWidget
 
 try:
     import serial
@@ -21,7 +22,7 @@ except ImportError:
     HAS_SERIAL = False
 
 
-class SerialDebugWidget(QWidget):
+class SerialDebugWidget(ROSWidget):
     """串口调试器"""
 
     def __init__(self, parent=None):

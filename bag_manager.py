@@ -15,9 +15,10 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
                              QLabel, QPushButton, QListWidget, QLineEdit,
                              QDoubleSpinBox, QFileDialog, QMessageBox,
                              QInputDialog)
+from ros_widget_base import ROSWidget
 
 
-class BagManagerWidget(QWidget):
+class BagManagerWidget(ROSWidget):
     """rosbag管理"""
 
     def __init__(self, ros_setup="", ws_setup="", parent=None):
@@ -31,33 +32,6 @@ class BagManagerWidget(QWidget):
         self._init_ui()
         self._refresh_bag_list()
 
-    def _build_source_cmd(self):
-        parts = []
-        if self.ros_setup and os.path.exists(self.ros_setup):
-            parts.append(f"source '{self.ros_setup}'")
-        if self.ws_setup and os.path.exists(os.path.expanduser(self.ws_setup)):
-            parts.append(f"source '{os.path.expanduser(self.ws_setup)}'")
-        self.source_cmd = " && ".join(parts) if parts else ""
-
-    def set_ros_env(self, ros_setup, ws_setup):
-        self.ros_setup = ros_setup
-        self.ws_setup = ws_setup
-        self._build_source_cmd()
-
-
-    def _run_bg(self, fn, on_done=None):
-        """后台线程执行,完成后主线程回调(线程安全)"""
-        from async_helper import run_async
-        run_async(fn, on_done)
-
-    def _run_cmd(self, cmd, timeout=10):
-        full = f"{self.source_cmd} && {cmd}" if self.source_cmd else cmd
-        try:
-            result = subprocess.run(["bash", "-c", full], capture_output=True,
-                                    text=True, timeout=timeout)
-            return result.stdout.strip(), result.stderr.strip(), result.returncode
-        except Exception as e:
-            return "", str(e), 1
 
     def _init_ui(self):
         layout = QVBoxLayout(self)

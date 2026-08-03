@@ -14,9 +14,10 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QLineEdit, QPlainTextEdit, QComboBox, QGroupBox, QSplitter,
 )
+from ros_widget_base import ROSWidget
 
 
-class TerminalWidget(QWidget):
+class TerminalWidget(ROSWidget):
     """内置终端组件"""
     
     def __init__(self, parent=None, ros_setup="", ws_setup=""):
@@ -124,12 +125,7 @@ class TerminalWidget(QWidget):
         
         layout.addWidget(preset_group)
     
-    def set_ros_env(self, ros_setup, ws_setup):
-        """设置ROS环境"""
-        self.ros_setup = ros_setup
-        self.ws_setup = ws_setup
-        self.ros_setup_label.setText(ros_setup or "未设置")
-    
+
     def execute_command(self):
         """执行命令"""
         command = self.command_input.text().strip()

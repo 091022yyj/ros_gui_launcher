@@ -12,9 +12,10 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
                              QLabel, QPushButton, QLineEdit, QDoubleSpinBox,
                              QTableWidget, QTableWidgetItem, QMessageBox,
                              QHeaderView)
+from ros_widget_base import ROSWidget
 
 
-class NavigationWidget(QWidget):
+class NavigationWidget(ROSWidget):
     """一键导航"""
 
     def __init__(self, ros_setup="", ws_setup="", parent=None):
@@ -25,22 +26,6 @@ class NavigationWidget(QWidget):
         self._build_source_cmd()
         self._init_ui()
 
-    def _build_source_cmd(self):
-        parts = []
-        if self.ros_setup and os.path.exists(self.ros_setup):
-            parts.append(f"source '{self.ros_setup}'")
-        if self.ws_setup and os.path.exists(os.path.expanduser(self.ws_setup)):
-            parts.append(f"source '{os.path.expanduser(self.ws_setup)}'")
-        self.source_cmd = " && ".join(parts) if parts else ""
-
-    def set_ros_env(self, ros_setup, ws_setup):
-        self.ros_setup = ros_setup
-        self.ws_setup = ws_setup
-        self._build_source_cmd()
-
-    def _run_cmd(self, cmd, timeout=8):
-        from env_cache import run_cmd
-        return run_cmd(cmd, self.ros_setup, self.ws_setup, timeout)
 
     def _init_ui(self):
         layout = QVBoxLayout(self)
@@ -121,10 +106,6 @@ class NavigationWidget(QWidget):
         self.status_label.setStyleSheet("color: #8be9fd; padding: 4px;")
         layout.addWidget(self.status_label)
 
-    def _run_bg(self, fn, on_done=None):
-        """后台线程执行,完成后主线程回调(线程安全)"""
-        from async_helper import run_async
-        run_async(fn, on_done)
 
     def _send_goal(self):
         x = self.x_spin.value()

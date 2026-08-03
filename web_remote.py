@@ -13,6 +13,7 @@ import subprocess
 import webbrowser
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
                              QLabel, QPushButton, QMessageBox)
+from ros_widget_base import ROSWidget
 
 # index.html 模板,__ROSBRIDGE_IP__ 启动前替换为本机IP
 INDEX_TEMPLATE = """<!DOCTYPE html>
@@ -107,7 +108,7 @@ INDEX_TEMPLATE = """<!DOCTYPE html>
 """
 
 
-class WebRemoteWidget(QWidget):
+class WebRemoteWidget(ROSWidget):
     """Web远程访问面板"""
 
     def __init__(self, ros_setup="", ws_setup="", parent=None):
@@ -121,18 +122,6 @@ class WebRemoteWidget(QWidget):
         self._init_ui()
         self._refresh_ip()
 
-    def _build_source_cmd(self):
-        parts = []
-        if self.ros_setup and os.path.exists(self.ros_setup):
-            parts.append(f"source '{self.ros_setup}'")
-        if self.ws_setup and os.path.exists(os.path.expanduser(self.ws_setup)):
-            parts.append(f"source '{os.path.expanduser(self.ws_setup)}'")
-        self.source_cmd = " && ".join(parts) if parts else ""
-
-    def set_ros_env(self, ros_setup, ws_setup):
-        self.ros_setup = ros_setup
-        self.ws_setup = ws_setup
-        self._build_source_cmd()
 
     def _get_local_ip(self):
         try:

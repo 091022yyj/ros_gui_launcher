@@ -12,6 +12,7 @@ from PyQt5.QtGui import QColor, QPen, QPainter, QFont
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
                              QLabel, QPushButton, QSlider, QMessageBox,
                              QInputDialog)
+from ros_widget_base import ROSWidget
 from env_cache import run_cmd
 
 
@@ -84,7 +85,7 @@ class SpeedGauge(QWidget):
         painter.end()
 
 
-class RobotControlWidget(QWidget):
+class RobotControlWidget(ROSWidget):
     """遥控面板"""
 
     def __init__(self, ros_setup="", ws_setup="", parent=None):
@@ -98,22 +99,6 @@ class RobotControlWidget(QWidget):
         self._init_ui()
         self.setFocusPolicy(Qt.StrongFocus)
 
-    def _build_source_cmd(self):
-        parts = []
-        if self.ros_setup and os.path.exists(self.ros_setup):
-            parts.append(f"source '{self.ros_setup}'")
-        if self.ws_setup and os.path.exists(os.path.expanduser(self.ws_setup)):
-            parts.append(f"source '{os.path.expanduser(self.ws_setup)}'")
-        self.source_cmd = " && ".join(parts) if parts else ""
-
-    def set_ros_env(self, ros_setup, ws_setup):
-        self.ros_setup = ros_setup
-        self.ws_setup = ws_setup
-        self._build_source_cmd()
-
-    def _run_cmd(self, cmd, timeout=3):
-        # 复用env_cache: 环境只source一次,避免每次启动bash开销(300ms->10ms)
-        return run_cmd(cmd, self.ros_setup, self.ws_setup, timeout=timeout)
 
     def _init_ui(self):
         layout = QVBoxLayout(self)

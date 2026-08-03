@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import (
     QGraphicsLineItem, QGraphicsTextItem, QMessageBox, QInputDialog,
     QGroupBox, QSplitter, QTextEdit, QTreeWidget, QTreeWidgetItem
 )
+from ros_widget_base import ROSWidget
 
 
 class TFFrame(QGraphicsEllipseItem):
@@ -160,7 +161,7 @@ class TFGraphicsView(QGraphicsView):
             self.scale(1.0 / factor, 1.0 / factor)
 
 
-class TFVisualizerWidget(QWidget):
+class TFVisualizerWidget(ROSWidget):
     """TF可视化组件"""
     
     def __init__(self, ros_setup="", ws_setup="", parent=None):
@@ -170,21 +171,7 @@ class TFVisualizerWidget(QWidget):
         self._build_source_cmd()
         self._init_ui()
     
-    def _build_source_cmd(self):
-        """构建source命令"""
-        parts = []
-        if self.ros_setup and os.path.exists(self.ros_setup):
-            parts.append(f"source '{self.ros_setup}'")
-        if self.ws_setup and os.path.exists(os.path.expanduser(self.ws_setup)):
-            parts.append(f"source '{os.path.expanduser(self.ws_setup)}'")
-        self.source_cmd = " && ".join(parts) if parts else ""
-    
-    def set_ros_env(self, ros_setup, ws_setup):
-        """设置ROS环境"""
-        self.ros_setup = ros_setup
-        self.ws_setup = ws_setup
-        self._build_source_cmd()
-    
+
     def _init_ui(self):
         """初始化UI"""
         layout = QVBoxLayout(self)
@@ -315,10 +302,6 @@ class TFVisualizerWidget(QWidget):
         
         self._run_bg(worker, on_done)
 
-    def _run_bg(self, fn, on_done=None):
-        """后台线程执行,完成后主线程回调(线程安全)"""
-        from async_helper import run_async
-        run_async(fn, on_done)
 
     def _build_tree(self, transforms):
         """构建标准TF树"""

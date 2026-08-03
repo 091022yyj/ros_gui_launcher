@@ -12,9 +12,10 @@ from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
                              QLabel, QPushButton, QTableWidget, QTableWidgetItem,
                              QHeaderView, QCheckBox, QMessageBox)
+from ros_widget_base import ROSWidget
 
 
-class AlarmSystemWidget(QWidget):
+class AlarmSystemWidget(ROSWidget):
     """报警系统"""
 
     def __init__(self, ros_setup="", ws_setup="", parent=None):
@@ -36,33 +37,6 @@ class AlarmSystemWidget(QWidget):
     def resume_timers(self):
         self.timer.start(10000)
 
-    def _build_source_cmd(self):
-        parts = []
-        if self.ros_setup and os.path.exists(self.ros_setup):
-            parts.append(f"source '{self.ros_setup}'")
-        if self.ws_setup and os.path.exists(os.path.expanduser(self.ws_setup)):
-            parts.append(f"source '{os.path.expanduser(self.ws_setup)}'")
-        self.source_cmd = " && ".join(parts) if parts else ""
-
-    def set_ros_env(self, ros_setup, ws_setup):
-        self.ros_setup = ros_setup
-        self.ws_setup = ws_setup
-        self._build_source_cmd()
-
-
-    def _run_bg(self, fn, on_done=None):
-        """后台线程执行,完成后主线程回调(线程安全)"""
-        from async_helper import run_async
-        run_async(fn, on_done)
-
-    def _run_cmd(self, cmd, timeout=8):
-        full = f"{self.source_cmd} && {cmd}" if self.source_cmd else cmd
-        try:
-            result = subprocess.run(["bash", "-c", full], capture_output=True,
-                                    text=True, timeout=timeout)
-            return result.stdout.strip(), result.stderr.strip(), result.returncode
-        except Exception:
-            return "", "超时", 1
 
     def _init_ui(self):
         layout = QVBoxLayout(self)

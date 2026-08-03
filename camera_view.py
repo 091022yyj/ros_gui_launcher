@@ -14,9 +14,10 @@ from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
                              QLabel, QPushButton, QComboBox, QFileDialog,
                              QMessageBox)
+from ros_widget_base import ROSWidget
 
 
-class CameraViewWidget(QWidget):
+class CameraViewWidget(ROSWidget):
     """摄像头画面"""
 
     def __init__(self, ros_setup="", ws_setup="", parent=None):
@@ -41,27 +42,6 @@ class CameraViewWidget(QWidget):
         if not self.current_topic:
             QTimer.singleShot(300, self._auto_detect)
 
-    def _build_source_cmd(self):
-        parts = []
-        if self.ros_setup and os.path.exists(self.ros_setup):
-            parts.append(f"source '{self.ros_setup}'")
-        if self.ws_setup and os.path.exists(os.path.expanduser(self.ws_setup)):
-            parts.append(f"source '{os.path.expanduser(self.ws_setup)}'")
-        self.source_cmd = " && ".join(parts) if parts else ""
-
-    def set_ros_env(self, ros_setup, ws_setup):
-        self.ros_setup = ros_setup
-        self.ws_setup = ws_setup
-        self._build_source_cmd()
-
-    def _run_cmd(self, cmd, timeout=10):
-        full = f"{self.source_cmd} && {cmd}" if self.source_cmd else cmd
-        try:
-            result = subprocess.run(["bash", "-c", full], capture_output=True,
-                                    text=True, timeout=timeout)
-            return result.stdout.strip(), result.stderr.strip(), result.returncode
-        except Exception as e:
-            return "", str(e), 1
 
     def _init_ui(self):
         layout = QVBoxLayout(self)
