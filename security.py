@@ -32,7 +32,7 @@ class SecurityManager:
         return command.strip()
     
     def check_file_permissions(self, path):
-        """检查文件权限"""
+        """检查文件权限(读权限即可,launch/py文件无需可执行权限)"""
         if not os.path.exists(path):
             return False
-        return os.access(path, os.X_OK)
+        return os.access(path, os.R_OK)

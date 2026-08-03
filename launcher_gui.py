@@ -110,7 +110,7 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
-VERSION = "3.6.5"
+VERSION = "3.6.6"
 
 DEFAULT_CONFIG = {
     "ros_setup": "/opt/ros/noetic/setup.bash",
@@ -3458,7 +3458,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "错误", f"删除机器失败: {machine_name}")
 
     def _run_async(self, fn, on_done=None):
-        """后台线程执行SSH操作,避免卡住界面;完成后回到主线程回调(线程安全)"""
+        """后台线程执行耗时操作,避免卡住界面;完成后回到主线程回调(线程安全)"""
         from async_helper import run_async
         run_async(fn, on_done)
 
