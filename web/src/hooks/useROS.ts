@@ -62,4 +62,27 @@ export const api = {
 
   rosTopics: () =>
     request<{ topics: string[]; error?: string }>("/api/ros/topics"),
+
+  rosExec: (cmd: string, timeout = 8) =>
+    request<{ success: boolean; output: string; error?: string; code: number }>(
+      "/api/ros/exec",
+      { method: "POST", body: JSON.stringify({ cmd, timeout }) }
+    ),
+
+  rosBattery: () =>
+    request<{ battery: string; error?: string }>("/api/ros/battery"),
+
+  rosTF: () =>
+    request<{ transforms: { parent: string; child: string }[]; error?: string }>(
+      "/api/ros/tf"
+    ),
+
+  gazeboStatus: () =>
+    request<{ running: boolean }>("/api/gazebo/status"),
+
+  gazeboControl: (action: string, data: Record<string, unknown> = {}) =>
+    request<{ success: boolean; output?: string; error?: string }>(
+      "/api/gazebo/control",
+      { method: "POST", body: JSON.stringify({ action, ...data }) }
+    ),
 };

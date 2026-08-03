@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useAnimationFrame, useFPS } from "../hooks/useAnimationFrame";
+import { useAnimationFrame } from "../hooks/useAnimationFrame";
 
 interface DataPoint {
   time: number;

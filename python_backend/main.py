@@ -170,6 +170,122 @@ async def ws_logs(websocket: WebSocket):
         pass
 
 
+# ========== 通用ROS命令执行 ==========
+
+def _ros_env_cmd(cmd, timeout=8):
+    """带ROS环境的命令执行"""
+    cfg = _load_config()
+    parts = []
+    ros_setup = cfg.get("ros_setup", "")
+    if ros_setup and os.path.exists(ros_setup):
+        parts.append("source '%s'" % ros_setup)
+    ws = cfg.get("ws_setup", "") or os.path.expanduser("~/catkin_ws/devel/setup.bash")
+    if os.path.exists(ws):
+        parts.append("source '%s'" % ws)
+    full = (" && ".join(parts) + " && " + cmd) if parts else cmd
+    import subprocess
+    r = subprocess.run(["bash", "-c", full], capture_output=True,
+                       text=True, timeout=timeout)
+    return r.stdout, r.stderr, r.returncode
+
+
+@app.post("/api/ros/exec")
+async def ros_exec(req: dict):
+    """执行任意ROS命令"""
+    cmd = req.get("cmd", "")
+    timeout = req.get("timeout", 8)
+    if not cmd:
+        return {"success": False, "error": "缺少cmd"}
+    try:
+        stdout, stderr, code = _ros_env_cmd(cmd, timeout)
+        return {"success": code == 0, "output": stdout, "error": stderr, "code": code}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/ros/battery")
+def ros_battery():
+    """电池状态"""
+    try:
+        stdout, _, _ = _ros_env_cmd(
+            "rostopic echo -n1 /battery_level 2>/dev/null | grep -E 'percentage|percent|level|voltage' | head -4",
+            timeout=4)
+        return {"battery": stdout}
+    except Exception as e:
+        return {"battery": "", "error": str(e)}
+
+
+@app.get("/api/ros/tf")
+def ros_tf():
+    """TF树数据"""
+    try:
+        stdout, _, code = _ros_env_cmd(
+            "rostopic echo /tf -n 1 2>/dev/null", timeout=5)
+        if code != 0 or not stdout:
+            stdout, _, _ = _ros_env_cmd(
+                "rostopic echo /tf_static -n 1 2>/dev/null", timeout=4)
+        transforms = []
+        cur_parent = None
+        for line in stdout.split("\n"):
+            line = line.strip()
+            if line.startswith("child_frame_id:"):
+                child = line.split(":", 1)[-1].strip().strip('"')
+                if cur_parent:
+                    transforms.append({"parent": cur_parent, "child": child})
+                cur_parent = None
+            elif line.startswith("frame_id:"):
+                import re
+                m = re.search(r'frame_id:\s*"?(\w+)', line)
+                if m:
+                    cur_parent = m.group(1)
+        return {"transforms": transforms}
+    except Exception as e:
+        return {"transforms": [], "error": str(e)}
+
+
+@app.get("/api/gazebo/status")
+def gazebo_status():
+    """Gazebo状态"""
+    try:
+        import subprocess
+        r = subprocess.run(["bash", "-c", "pgrep -f gzserver | head -1"],
+                           capture_output=True, text=True, timeout=3)
+        return {"running": r.returncode == 0 and bool(r.stdout.strip())}
+    except Exception:
+        return {"running": False}
+
+
+@app.post("/api/gazebo/control")
+async def gazebo_control(req: dict):
+    """Gazebo控制: pause/unpause/reset/spawn/delete"""
+    action = req.get("action", "")
+    try:
+        if action == "pause":
+            stdout, stderr, code = _ros_env_cmd("rosservice call /gazebo/pause_physics", 5)
+        elif action == "unpause":
+            stdout, stderr, code = _ros_env_cmd("rosservice call /gazebo/unpause_physics", 5)
+        elif action == "reset":
+            stdout, stderr, code = _ros_env_cmd("rosservice call /gazebo/reset_simulation", 5)
+        elif action == "spawn":
+            path = req.get("path", "")
+            name = req.get("name", "robot")
+            kind = req.get("kind", "urdf")
+            if not os.path.exists(path):
+                return {"success": False, "error": "文件不存在"}
+            ext = "-urdf" if kind == "urdf" else "-sdf"
+            stdout, stderr, code = _ros_env_cmd(
+                "rosrun gazebo_ros spawn_model -file '%s' %s -model %s" % (path, ext, name), 15)
+        elif action == "delete":
+            name = req.get("name", "")
+            stdout, stderr, code = _ros_env_cmd(
+                "rosservice call /gazebo/delete_model '{model_name: %s}'" % name, 5)
+        else:
+            return {"success": False, "error": "未知操作"}
+        return {"success": code == 0, "output": stdout, "error": stderr}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

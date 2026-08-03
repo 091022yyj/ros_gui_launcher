@@ -4,18 +4,48 @@ import { Sidebar } from "./components/Sidebar";
 import { TaskList } from "./components/TaskList";
 import { MonitorPage } from "./components/MonitorPage";
 import { ROSMonitor } from "./components/ROSMonitor";
+import RobotControl from "./components/RobotControl";
+import NavigationPanel from "./components/NavigationPanel";
+import SensorPanel from "./components/SensorPanel";
+import CameraView from "./components/CameraView";
+import TopicTable from "./components/TopicTable";
+import TFView from "./components/TFView";
+import BagManager from "./components/BagManager";
+import Simulation from "./components/Simulation";
+import TaskScheduler from "./components/TaskScheduler";
+import AlarmSystem from "./components/AlarmSystem";
+import MultiMachine from "./components/MultiMachine";
+import DiskMonitor from "./components/DiskMonitor";
+import LogAnalysis from "./components/LogAnalysis";
+import SerialDebug from "./components/SerialDebug";
 import { Terminal } from "./components/Terminal";
 import { LogViewer } from "./components/LogViewer";
 import { SceneManager } from "./components/SceneManager";
+import Translator from "./components/Translator";
 import { SettingsPage } from "./components/SettingsPage";
 
 const pages: Record<string, React.ComponentType> = {
   tasks: TaskList,
   monitor: MonitorPage,
   ros: ROSMonitor,
+  robot: RobotControl,
+  navigation: NavigationPanel,
+  sensors: SensorPanel,
+  camera: CameraView,
+  topics: TopicTable,
+  tf: TFView,
+  bags: BagManager,
+  simulation: Simulation,
+  scheduler: TaskScheduler,
+  alarms: AlarmSystem,
+  multi: MultiMachine,
+  disk: DiskMonitor,
+  analysis: LogAnalysis,
+  serial: SerialDebug,
   terminal: Terminal,
   logs: LogViewer,
   scenes: SceneManager,
+  translator: Translator,
   settings: SettingsPage,
 };
 
