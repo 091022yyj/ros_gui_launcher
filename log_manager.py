@@ -109,12 +109,13 @@ class LogManager:
             if level:
                 level_patterns = {
                     "ERROR": r"\[ERROR\]|错误|error",
+                    "WARN": r"\[WARN\]|警告|warning",
                     "WARNING": r"\[WARN\]|警告|warning",
                     "INFO": r"\[INFO\]|信息|info",
                     "DEBUG": r"\[DEBUG\]|调试|debug",
                 }
-                if level in level_patterns:
-                    if not re.search(level_patterns[level], line, re.IGNORECASE):
+                if level.upper() in level_patterns:
+                    if not re.search(level_patterns[level.upper()], line, re.IGNORECASE):
                         continue
             filtered.append(line)
         return filtered

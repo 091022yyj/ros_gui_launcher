@@ -110,7 +110,7 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
-VERSION = "3.6.4"
+VERSION = "3.6.5"
 
 DEFAULT_CONFIG = {
     "ros_setup": "/opt/ros/noetic/setup.bash",
@@ -573,14 +573,24 @@ class ProcessRow:
         self.process.finished.connect(lambda code, status: finish_callback(self))
         # 用 setsid 让任务成为独立进程组的组长(pgid == pid),
         # 停止时 killpg 可以杀掉 roslaunch/gazebo 等所有子孙进程
-        self.process.start("setsid", ["bash", "-c", cmd])
+        if platform.system() == "Windows":
+            self.process.start("cmd", ["/c", cmd])
+        else:
+            self.process.start("setsid", ["bash", "-c", cmd])
 
     def stop(self):
         self.stop_requested = True
         if not (self.process and self.is_running()):
             return
-        # 进程组的 pgid 等于组长进程 pid;killpg 给全组(含所有子孙进程)发信号
         pid = self.process.processId()
+
+        if platform.system() == "Windows":
+            self.process.terminate()
+            if not self.process.waitForFinished(2500):
+                self.process.kill()
+            return
+
+        # 进程组的 pgid 等于组长进程 pid;killpg 给全组(含所有子孙进程)发信号
         killed = False
         if pid:
             try:
@@ -1964,11 +1974,6 @@ class MainWindow(QMainWindow):
             status_item.setText("● 已停止")
             status_item.setForeground(QColor("#80868b"))
 
-    def on_process_output(self, task, text):
-        name = os.path.basename(task.path)
-        for line in text.rstrip("\n").splitlines():
-            self.log("[%s] %s" % (name, line))
-
     def on_process_finished(self, task):
         table = self._table_of(task.kind)
         path_item = None
@@ -2284,7 +2289,7 @@ class MainWindow(QMainWindow):
         self.updater.set_update_server(f"https://api.github.com/repos/{repo_owner}/{repo_name}")
         
         # 在后台线程中检查更新(不阻塞界面)
-        self._run_async_ssh(
+        self._run_async(
             lambda: self.updater.check_for_updates(),
             self._on_update_check_done
         )
@@ -2378,7 +2383,7 @@ class MainWindow(QMainWindow):
             else:
                 self.proc_list.setPlainText("无运行中的进程")
         
-        self._run_async_ssh(worker, on_done)
+        self._run_async(worker, on_done)
 
 
     # ---------- 历史记录 ----------
@@ -2663,7 +2668,7 @@ class MainWindow(QMainWindow):
             else:
                 self.ros_master_status.setText("状态: 未运行 ✗")
                 self.ros_master_status.setStyleSheet("color: #ef5350; font-weight: bold;")
-        self._run_async_ssh(lambda: self.ros_monitor.check_ros_master(), on_done)
+        self._run_async(lambda: self.ros_monitor.check_ros_master(), on_done)
 
     def _refresh_ros_nodes(self):
         """刷新ROS节点列表(异步)"""
@@ -2683,7 +2688,7 @@ class MainWindow(QMainWindow):
                 item = QTreeWidgetItem([node, "存活", "", ""])
                 self.node_tree.addTopLevelItem(item)
             self.log(f"刷新节点列表: {len(result['nodes'])} 个节点")
-        self._run_async_ssh(lambda: self.ros_monitor.get_ros_nodes(), on_done)
+        self._run_async(lambda: self.ros_monitor.get_ros_nodes(), on_done)
 
     def _show_node_info(self):
         """显示节点信息"""
@@ -2731,7 +2736,7 @@ class MainWindow(QMainWindow):
             for topic in result["topics"]:
                 item = QTreeWidgetItem([topic, "", "", ""])
                 self.topic_tree.addTopLevelItem(item)
-        self._run_async_ssh(lambda: self.ros_monitor.get_ros_topics(), on_done)
+        self._run_async(lambda: self.ros_monitor.get_ros_topics(), on_done)
         
         self.log(f"刷新Topic列表: {len(result['topics'])} 个话题")
 
@@ -2798,7 +2803,7 @@ class MainWindow(QMainWindow):
                 self.ros_master_status.setText("状态: 未运行 ✗")
                 self.ros_master_status.setStyleSheet("color: #ef5350; font-weight: bold;")
         
-        self._run_async_ssh(
+        self._run_async(
             lambda: self.ros_monitor.check_ros_master(),
             on_done
         )
@@ -2835,7 +2840,7 @@ class MainWindow(QMainWindow):
                         part.get("percent", "N/A")
                     ])
                 self.disk_tree.addTopLevelItem(item)
-        self._run_async_ssh(lambda: self.ros_monitor.get_disk_usage(), on_done)
+        self._run_async(lambda: self.ros_monitor.get_disk_usage(), on_done)
 
     def _refresh_log_size(self):
         """刷新日志目录大小(异步)"""
@@ -2843,7 +2848,7 @@ class MainWindow(QMainWindow):
         self.log_size_label.setText("日志目录大小: 计算中...")
         def on_done(result):
             self.log_size_label.setText(f"日志目录大小: {result['size_human']}")
-        self._run_async_ssh(
+        self._run_async(
             lambda: self.ros_monitor.get_log_directory_size(log_dir),
             on_done
         )
@@ -3123,7 +3128,7 @@ class MainWindow(QMainWindow):
                 self.log("仿真已暂停")
             else:
                 QMessageBox.warning(self, "错误", f"暂停仿真失败:\n{result['error']}")
-        self._run_async_ssh(lambda: self.sim_controller.pause_simulation(), on_done)
+        self._run_async(lambda: self.sim_controller.pause_simulation(), on_done)
 
     def _unpause_simulation(self):
         """继续仿真(异步)"""
@@ -3138,7 +3143,7 @@ class MainWindow(QMainWindow):
                 self.log("仿真已继续")
             else:
                 QMessageBox.warning(self, "错误", f"继续仿真失败:\n{result['error']}")
-        self._run_async_ssh(lambda: self.sim_controller.unpause_simulation(), on_done)
+        self._run_async(lambda: self.sim_controller.unpause_simulation(), on_done)
 
     def _reset_simulation(self):
         """重置仿真(异步)"""
@@ -3153,7 +3158,7 @@ class MainWindow(QMainWindow):
                 self.log("仿真已重置")
             else:
                 QMessageBox.warning(self, "错误", f"重置仿真失败:\n{result['error']}")
-        self._run_async_ssh(lambda: self.sim_controller.reset_simulation(), on_done)
+        self._run_async(lambda: self.sim_controller.reset_simulation(), on_done)
 
     def _start_gazebo(self):
         """启动Gazebo空世界(异步)"""
@@ -3175,7 +3180,7 @@ class MainWindow(QMainWindow):
             else:
                 QMessageBox.warning(self, "错误", f"启动Gazebo失败:\n{result['error']}")
         
-        self._run_async_ssh(lambda: self.sim_controller.start_gazebo(), on_done)
+        self._run_async(lambda: self.sim_controller.start_gazebo(), on_done)
 
     def _stop_gazebo(self):
         """停止Gazebo(异步)"""
@@ -3186,7 +3191,7 @@ class MainWindow(QMainWindow):
             self.gazebo_status_label.setStyleSheet("color: #6272a4;")
             self.model_list.clear()
             self.log("Gazebo已停止")
-        self._run_async_ssh(lambda: self.sim_controller.stop_gazebo(), on_done)
+        self._run_async(lambda: self.sim_controller.stop_gazebo(), on_done)
 
     def _refresh_gazebo_status(self):
         """刷新Gazebo状态(异步)"""
@@ -3200,7 +3205,7 @@ class MainWindow(QMainWindow):
                 self.gazebo_status_label.setText("Gazebo: 未运行")
                 self.gazebo_status_label.setStyleSheet("color: #6272a4;")
         
-        self._run_async_ssh(
+        self._run_async(
             lambda: {"running": self.sim_controller.is_gazebo_running()},
             on_done
         )
@@ -3234,7 +3239,7 @@ class MainWindow(QMainWindow):
             else:
                 QMessageBox.warning(self, "错误", f"启动场景失败:\n{result['error']}")
         
-        self._run_async_ssh(
+        self._run_async(
             lambda: self.sim_controller.start_simulation_scene(pkg, file),
             on_done
         )
@@ -3262,7 +3267,7 @@ class MainWindow(QMainWindow):
                 self._refresh_gazebo_models()
             else:
                 QMessageBox.warning(self, "错误", f"加载URDF失败:\n{result['error']}")
-        self._run_async_ssh(
+        self._run_async(
             lambda: self.sim_controller.spawn_urdf_model(path, model_name),
             on_done
         )
@@ -3290,7 +3295,7 @@ class MainWindow(QMainWindow):
                 self._refresh_gazebo_models()
             else:
                 QMessageBox.warning(self, "错误", f"加载SDF失败:\n{result['error']}")
-        self._run_async_ssh(
+        self._run_async(
             lambda: self.sim_controller.spawn_sdf_model(path, model_name),
             on_done
         )
@@ -3307,7 +3312,7 @@ class MainWindow(QMainWindow):
             else:
                 for m in models:
                     self.model_list.addItem(f"🤖 {m}")
-        self._run_async_ssh(lambda: self.sim_controller.get_gazebo_models(), on_done)
+        self._run_async(lambda: self.sim_controller.get_gazebo_models(), on_done)
 
     def _delete_model(self):
         """删除模型(异步)"""
@@ -3332,7 +3337,7 @@ class MainWindow(QMainWindow):
                 self._refresh_gazebo_models()
             else:
                 QMessageBox.warning(self, "错误", f"删除模型失败:\n{result['error']}")
-        self._run_async_ssh(lambda: self.sim_controller.delete_model(model_name), on_done)
+        self._run_async(lambda: self.sim_controller.delete_model(model_name), on_done)
 
     # ---------- 日志分析 ----------
 
@@ -3452,7 +3457,7 @@ class MainWindow(QMainWindow):
         else:
             QMessageBox.warning(self, "错误", f"删除机器失败: {machine_name}")
 
-    def _run_async_ssh(self, fn, on_done=None):
+    def _run_async(self, fn, on_done=None):
         """后台线程执行SSH操作,避免卡住界面;完成后回到主线程回调(线程安全)"""
         from async_helper import run_async
         run_async(fn, on_done)
@@ -3475,7 +3480,7 @@ class MainWindow(QMainWindow):
             else:
                 QMessageBox.warning(self, "失败", f"连接 {machine_name} 失败:\n{result['error']}")
         
-        self._run_async_ssh(
+        self._run_async(
             lambda: self.multi_machine.test_connection(machine_name),
             on_done
         )
@@ -3528,7 +3533,7 @@ class MainWindow(QMainWindow):
             else:
                 QMessageBox.warning(self, "错误", f"启动roscore失败:\n{result['error']}")
         
-        self._run_async_ssh(
+        self._run_async(
             lambda: self.multi_machine.start_ros_master(machine_name),
             on_done
         )
@@ -3549,7 +3554,7 @@ class MainWindow(QMainWindow):
             else:
                 QMessageBox.warning(self, "错误", f"停止roscore失败:\n{result['error']}")
         
-        self._run_async_ssh(
+        self._run_async(
             lambda: self.multi_machine.stop_ros_master(machine_name),
             on_done
         )
@@ -3575,7 +3580,7 @@ class MainWindow(QMainWindow):
             else:
                 QMessageBox.warning(self, "错误", f"启动launch失败:\n{result['error']}")
         
-        self._run_async_ssh(
+        self._run_async(
             lambda: self.multi_machine.start_launch_file_background(machine_name, launch_file),
             on_done
         )
@@ -3596,7 +3601,7 @@ class MainWindow(QMainWindow):
             else:
                 QMessageBox.warning(self, "错误", f"停止launch失败:\n{result['error']}")
         
-        self._run_async_ssh(
+        self._run_async(
             lambda: self.multi_machine.stop_launch_process(machine_name),
             on_done
         )
@@ -3618,7 +3623,7 @@ class MainWindow(QMainWindow):
                 for node in result["nodes"]:
                     self.remote_nodes_list.addItem(node)
         
-        self._run_async_ssh(
+        self._run_async(
             lambda: self.multi_machine.get_ros_nodes(machine_name),
             on_done
         )
@@ -3640,7 +3645,7 @@ class MainWindow(QMainWindow):
                 for topic in result["topics"]:
                     self.remote_topics_list.addItem(topic)
         
-        self._run_async_ssh(
+        self._run_async(
             lambda: self.multi_machine.get_ros_topics(machine_name),
             on_done
         )
@@ -3659,7 +3664,7 @@ class MainWindow(QMainWindow):
             self.remote_disk_label.setText(f"磁盘: {status.get('disk', '--')}")
             self.remote_uptime_label.setText(f"运行时间: {status.get('uptime', '--')}")
         
-        self._run_async_ssh(
+        self._run_async(
             lambda: self.multi_machine.get_robot_status(machine_name),
             on_done
         )
@@ -3687,7 +3692,7 @@ class MainWindow(QMainWindow):
             else:
                 self.cmd_output.setPlainText(f"错误:\n{result.get('error', '未知错误')}")
         
-        self._run_async_ssh(
+        self._run_async(
             lambda: self.multi_machine.execute_remote_command(machine_name, command),
             on_done
         )
@@ -3811,7 +3816,7 @@ class MainWindow(QMainWindow):
         
         # 获取文件列表
         cmd = f"ls -la {current_path} 2>/dev/null || echo 'ERROR:目录不存在'"
-        self._run_async_ssh(
+        self._run_async(
             lambda: self.multi_machine._run_ssh_command(machine_name, cmd),
             on_done
         )
@@ -3934,7 +3939,7 @@ class MainWindow(QMainWindow):
                         self.log(f"在 {machine_name} 启动launch: {launch_name}")
                     else:
                         QMessageBox.warning(self, "错误", f"启动launch失败:\n{result['error']}")
-                self._run_async_ssh(
+                self._run_async(
                     lambda: self.multi_machine.start_launch_file_background(machine_name, launch_name),
                     on_done_launch
                 )
@@ -3955,7 +3960,7 @@ class MainWindow(QMainWindow):
                         self.log(f"在 {machine_name} 运行: {file_path}")
                     else:
                         QMessageBox.warning(self, "错误", f"运行Python文件失败:\n{result['error']}")
-                self._run_async_ssh(
+                self._run_async(
                     lambda: self.multi_machine._run_ssh_command(machine_name, cmd, timeout=5),
                     on_done_py
                 )
@@ -4079,7 +4084,7 @@ class MainWindow(QMainWindow):
         
         # 搜索文件
         cmd = f"find {current_path} -name '*{keyword}*' -type f 2>/dev/null | head -50"
-        self._run_async_ssh(
+        self._run_async(
             lambda: self.multi_machine._run_ssh_command(machine_name, cmd, timeout=10),
             on_done
         )
@@ -4094,7 +4099,14 @@ def _global_excepthook(exc_type, exc_value, exc_tb):
             f.write("\n[%s] %s\n" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), exc_type.__name__))
             traceback.print_exception(exc_type, exc_value, exc_tb, file=f)
     except Exception:
-        pass
+        # fallback 到 /tmp 或当前目录
+        try:
+            fallback = "/tmp/ros_launcher_crash.log" if os.path.isdir("/tmp") else "crash.log"
+            with open(fallback, "a", encoding="utf-8") as f:
+                f.write("\n[%s] %s\n" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), exc_type.__name__))
+                traceback.print_exception(exc_type, exc_value, exc_tb, file=f)
+        except Exception:
+            pass
     traceback.print_exception(exc_type, exc_value, exc_tb)
 
 

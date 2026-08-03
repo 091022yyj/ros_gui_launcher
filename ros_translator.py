@@ -147,7 +147,7 @@ class ROSTranslator:
             return text
         
         # 检查是否是错误/警告信息
-        is_error = bool(re.search(r'\[ERROR\]|\[FATAL\]|error|failed|exception', text, re.IGNORECASE))
+        is_error = bool(re.search(r'\[ERROR\]|\[FATAL\]|\berror\b|\bfailed\b|\bexception\b', text, re.IGNORECASE))
         is_warning = bool(re.search(r'\[WARN\]|warning', text, re.IGNORECASE))
         
         if not is_error and not is_warning:

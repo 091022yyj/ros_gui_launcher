@@ -2,55 +2,9 @@
   "ros_setup": "/opt/ros/noetic/setup.bash",
   "ws_setup": "/home/ub/catkin_ws/devel/setup.bash",
   "start_delay": 3,
-  "launch_files": [
-    {
-      "path": "/tmp/b.launch",
-      "args": "",
-      "auto_restart": false,
-      "auto_start": false
-    },
-    {
-      "path": "/tmp/c.launch",
-      "args": "",
-      "auto_restart": false,
-      "auto_start": false
-    },
-    {
-      "path": "/tmp/a.launch",
-      "args": "",
-      "auto_restart": false,
-      "auto_start": false
-    },
-    {
-      "path": "/tmp/test_task.sh",
-      "args": "",
-      "auto_restart": false,
-      "auto_start": false
-    },
-    {
-      "path": "/tmp/test_task.sh",
-      "args": "",
-      "auto_restart": false,
-      "auto_start": false
-    }
-  ],
-  "py_files": [
-    {
-      "path": "/tmp/test_task.py",
-      "args": "",
-      "auto_restart": false,
-      "auto_start": false
-    },
-    {
-      "path": "/tmp/test_task.py",
-      "args": "",
-      "auto_restart": false,
-      "auto_start": false
-    }
-  ],
-  "history": [
-    "/tmp/test_task.py"
-  ],
+  "launch_files": [],
+  "py_files": [],
+  "history": [],
   "current_scene": null,
   "scenes": {},
   "translation_enabled": true,

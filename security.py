@@ -24,21 +24,11 @@ class SecurityManager:
             return False
     
     def sanitize_command(self, command):
-        """清理命令，防止注入"""
-        # 危险字符列表 - 找到第一个危险字符，截断命令
+        """清理命令，防止注入。发现危险字符则返回空字符串（拒绝执行）"""
         dangerous_chars = [";", "|", "&", "$", "`", ">", "<", "(", ")"]
-        
-        # 找到第一个危险字符的位置
-        min_pos = len(command)
         for char in dangerous_chars:
-            pos = command.find(char)
-            if pos != -1 and pos < min_pos:
-                min_pos = pos
-        
-        # 截断到危险字符之前
-        command = command[:min_pos]
-        
-        # 移除首尾空格
+            if char in command:
+                return ""  # 拒绝执行，而不是截断
         return command.strip()
     
     def check_file_permissions(self, path):
