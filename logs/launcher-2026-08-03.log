@@ -31,3 +31,6 @@
 [02:13:35] >>> 启动: /tmp/test_task.py 
 [02:13:43] === 进程结束: /tmp/test_task.py
 [02:13:43] <<< 停止: /tmp/test_task.py
+[10:21:39] >>> 启动: /tmp/test_task.py 
+[10:21:41] === 进程结束: /tmp/test_task.py
+[10:21:41] <<< 停止: /tmp/test_task.py
