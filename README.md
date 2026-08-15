@@ -1,90 +1,53 @@
-# ROS GUI 启动器 v4.0.0
+# ros_gui_launcher
 
-一个功能强大的ROS一键启动工具，支持launch文件和Python脚本的管理与启动。
+ROS 一键启动图形界面（Python + PyQt5），把 launch 文件、Python 脚本、内置终端和日志管理全部收进一个窗口。新手不用再被满屏英文报错劝退（自动翻译成中文），launch 文件再多也不乱——比 rqt_launch 更贴近实战，比 Foxglove 更轻量。
 
-## 新增功能 (v3.0)
+![Version](https://img.shields.io/github/v/release/091022yyj/ros_gui_launcher)
+![License](https://img.shields.io/github/license/091022yyj/ros_gui_launcher)
+![Language](https://img.shields.io/badge/Language-Python-3776AB)
+![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20ROS1%2FROS2-orange)
 
-### 核心功能
-- **日志分离系统** - 按任务分文件存储日志，支持日志过滤和搜索
-- **ROS报错翻译** - 自动检测英文报错并翻译成中文
-- **启动场景预设** - 保存/切换常用任务组合（建图、导航等）
-- **内置终端** - 在GUI中直接运行ROS命令
+## ✨ 功能特性
 
-### 易用性提升
-- **文件拖拽支持** - 拖拽文件到窗口自动添加
-- **历史记录** - 快速加载之前使用的文件
-- **自动翻译** - 日志中的错误信息自动翻译成中文
+| 功能 | 说明 |
+|------|------|
+| 🚀 一键启动 | 拖入 launch 文件或 Python 脚本，双击直接启动，不用背命令 |
+| 🧠 报错中文翻译 | 自动截获 ROS 报错并翻译成中文，附常见解决建议，完全离线 |
+| 📁 场景预设 | 常用启动组合存成预设，一键恢复整套环境 |
+| 🖥️ 内置终端 | 集成终端面板，日志按节点分 Tab，互不干扰 |
+| 📜 日志分离 | 每个节点独立日志区，ERROR/WARN 高亮显示 |
+| 🖱️ 文件拖拽 | 直接拖文件进窗口，自动识别 launch / py / 目录类型 |
 
-## 安装
+## 📸 截图
 
-### 方式1：直接运行Python脚本
+| 主界面 | 报错翻译 | 场景预设 |
+|--------|----------|----------|
+| ![主界面](docs/screenshot-main.png) | ![报错翻译](docs/screenshot-translate.png) | ![场景预设](docs/screenshot-presets.png) |
+
+## 🚀 快速开始
 
 ```bash
-pip install PyQt5 psutil
-python3 launcher_gui.py
+# 依赖：ROS Noetic / Humble + Python 3
+sudo apt install python3-pyqt5
+git clone https://github.com/091022yyj/ros_gui_launcher.git
+cd ros_gui_launcher
+python3 main.py
 ```
 
-### 方式2：打包成可执行文件
+## ❓ FAQ
 
-```bash
-python3 build.py --clean
-./dist/ros_gui_launcher
-```
+**Q: 报错翻译怎么实现的？需要联网吗？**
+A: 截获节点 stderr 后做本地规则匹配 + 词典翻译，完全离线；词典可自行编辑扩充。
 
-## 使用方法
+**Q: 支持 ROS 2 吗？**
+A: 支持，已验证 Noetic（ROS1）与 Humble（ROS2）。
 
-### 基本使用
-1. 设置ROS环境路径（ROS setup和工作空间setup）
-2. 添加launch文件或Python文件到对应列表
-3. 点击"一键启动所有任务"或单独启动
+**Q: 怎么添加自定义启动项？**
+A: 直接把 launch 文件或脚本拖进窗口即可自动识别加入，右键可设置启动参数。
 
-### 场景管理
-1. 点击"场景管理"标签页
-2. 点击"创建场景"保存当前配置
-3. 双击场景可快速切换
+**Q: 翻译不准或想补充新报错怎么办？**
+A: 编辑 `config/error_dict.json` 添加规则，重启程序即生效。
 
-### 内置终端
-1. 点击"内置终端"标签页
-2. 输入ROS命令（如 `rostopic list`）
-3. 支持常用命令快捷按钮
+## 🏷️ 推荐 Topics
 
-### 日志查看
-1. 点击"运行日志"标签页
-2. 支持按任务过滤日志
-3. 支持日志搜索
-
-### 翻译工具
-1. 点击"翻译工具"标签页
-2. 输入英文错误信息
-3. 获取中文翻译
-
-## 快捷键
-
-| 快捷键 | 功能 |
-|--------|------|
-| F5 | 一键启动所有任务 |
-| F6 | 停止所有任务 |
-| F7 | 启动选中任务 |
-| F8 | 停止选中任务 |
-| ↑/↓ | 终端命令历史 |
-
-## 文件结构
-
-```
-ros_gui_launcher/
-├── launcher_gui.py      # 主程序
-├── security.py          # 安全模块
-├── config_manager.py    # 配置管理
-├── monitor.py           # 系统监控
-├── updater.py           # 远程更新
-├── log_manager.py       # 日志管理
-├── ros_translator.py    # ROS报错翻译
-├── scene_manager.py     # 场景管理
-├── terminal_widget.py   # 内置终端
-├── build.py             # 打包脚本
-└── update_config.json   # 更新配置
-```
-
-## 许可证
-
-MIT License
+`ros` `ros2` `pyqt5` `gui` `robotics` `launch` `ros-tools` `chinese`
